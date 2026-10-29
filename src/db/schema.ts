@@ -116,6 +116,35 @@ export const activities = pgTable(
   (t) => [index("activities_status_date_idx").on(t.status, t.date)],
 );
 
+export const activityScheduleItems = pgTable(
+  "activity_schedule_items",
+  {
+    id: serial("id").primaryKey(),
+    activityId: integer("activity_id")
+      .notNull()
+      .references(() => activities.id, { onDelete: "cascade" }),
+    time: time("time"),
+    title: varchar("title", { length: 200 }).notNull(),
+    notes: text("notes"),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (t) => [index("activity_schedule_items_activity_idx").on(t.activityId, t.sortOrder)],
+);
+
+export const buses = pgTable(
+  "buses",
+  {
+    id: serial("id").primaryKey(),
+    activityId: integer("activity_id")
+      .notNull()
+      .references(() => activities.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 100 }).notNull(),
+    capacity: integer("capacity").notNull(),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("buses_activity_name_unique").on(t.activityId, sql`lower(${t.name})`)],
+);
+
 // ─── System-wide settings (key/value) ────────────────────────────────────────
 
 export const settings = pgTable("settings", {
@@ -160,4 +189,7 @@ export type User = typeof users.$inferSelect;
 export type UserRole = (typeof userRole.enumValues)[number];
 export type Faculty = typeof faculties.$inferSelect;
 export type Activity = typeof activities.$inferSelect;
+export type ActivityStatus = (typeof activityStatus.enumValues)[number];
+export type ScheduleItem = typeof activityScheduleItems.$inferSelect;
+export type Bus = typeof buses.$inferSelect;
 export type AuditLog = typeof auditLogs.$inferSelect;
