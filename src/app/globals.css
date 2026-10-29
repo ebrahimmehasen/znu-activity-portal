@@ -1,0 +1,41 @@
+@import "tailwindcss";
+@import "@fontsource-variable/cairo";
+
+:root {
+  --background: #f6f7f9;
+  --surface: #ffffff;
+  --foreground: #14181f;
+  --muted: #5f6b7a;
+  --border: #e2e6ec;
+  --primary: #0f5c4c;
+  --primary-foreground: #ffffff;
+  --danger: #b42318;
+  --warning: #b54708;
+  --success: #067647;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --font-sans: "Cairo Variable", system-ui, sans-serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+/* Numbers such as phone and national IDs read left-to-right inside RTL text. */
+.ltr-nums {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
