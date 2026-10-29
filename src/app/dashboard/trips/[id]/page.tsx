@@ -8,6 +8,7 @@ import { formatDate, formatTime } from "@/lib/dates";
 import { STATUS_LABELS, STATUS_TONES } from "@/lib/trips/labels";
 import { getSchedule, getTrip } from "@/lib/trips/service";
 import { deleteTripAction } from "../actions";
+import { BusesCard } from "./buses/buses-card";
 
 export const metadata: Metadata = { title: "تفاصيل الرحلة" };
 
@@ -85,6 +86,8 @@ export default async function TripPage({ params }: PageProps<"/dashboard/trips/[
               </ol>
             )}
           </Card>
+
+          {trip.busesEnabled && <BusesCard trip={trip} />}
         </div>
 
         <Card className="h-fit">

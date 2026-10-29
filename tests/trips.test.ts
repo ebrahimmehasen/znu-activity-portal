@@ -13,40 +13,8 @@ import {
   getTrip,
   listTrips,
   updateTrip,
-  type TripInput,
 } from "@/lib/trips/service";
-import { createUser, ctx, resetDb } from "./helpers";
-
-function daysFromToday(n: number) {
-  const d = new Date(`${cairoToday()}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-}
-
-export function tripInput(overrides: Partial<TripInput> = {}): TripInput {
-  return {
-    title: "رحلة الإسكندرية",
-    description: "يوم على البحر",
-    date: daysFromToday(10),
-    startTime: "06:30",
-    endTime: "22:00",
-    location: "الإسكندرية",
-    capacity: 50,
-    whenFull: "close",
-    waitlistPromotion: "auto",
-    feeEnabled: false,
-    feeAmount: "",
-    paymentRequired: false,
-    lateGraceMinutes: 10,
-    busesEnabled: false,
-    supervisorScope: "bus",
-    schedule: [
-      { time: "06:30", title: "التجمع والتحرك", notes: "" },
-      { time: "", title: "الغداء", notes: "على الشاطئ" },
-    ],
-    ...overrides,
-  };
-}
+import { createUser, ctx, daysFromToday, resetDb, tripInput } from "./helpers";
 
 describe("trips", () => {
   let admin: SessionUser;

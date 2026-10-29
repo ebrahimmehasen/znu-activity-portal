@@ -1,7 +1,8 @@
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 
-const COST = 12;
+// Tests lower the cost via BCRYPT_COST to stay fast; production always uses 12.
+const COST = process.env.NODE_ENV === "test" && process.env.BCRYPT_COST ? Number(process.env.BCRYPT_COST) : 12;
 
 /** bcrypt only uses the first 72 bytes, so longer passwords are rejected rather than silently truncated. */
 export const passwordSchema = z

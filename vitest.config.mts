@@ -11,7 +11,7 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    env: { DATABASE_URL: "memory://" },
+    env: { DATABASE_URL: "memory://", BCRYPT_COST: "4" },
     setupFiles: ["tests/setup.ts"],
     testTimeout: 30_000,
     hookTimeout: 60_000,
