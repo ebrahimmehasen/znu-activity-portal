@@ -42,4 +42,10 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "settings.updated": "تعديل الإعدادات العامة",
   "faculty.created": "إضافة كلية",
   "faculty.updated": "تعديل كلية",
+  "activity.created": "إضافة رحلة",
+  "activity.updated": "تعديل رحلة",
+  "activity.deleted": "حذف رحلة",
+  "bus.created": "إضافة أتوبيس",
+  "bus.updated": "تعديل أتوبيس",
+  "bus.deleted": "حذف أتوبيس",
 };

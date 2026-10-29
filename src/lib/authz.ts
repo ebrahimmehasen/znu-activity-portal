@@ -5,8 +5,8 @@ import type { UserRole } from "@/db/schema";
  * until then supervisors only reach their own account pages.
  */
 const ROLE_ABILITIES = {
-  super_admin: ["manage_admins", "manage_settings", "view_audit", "manage_faculties"],
-  admin: ["view_audit", "manage_faculties"],
+  super_admin: ["manage_admins", "manage_settings", "view_audit", "manage_faculties", "manage_activities"],
+  admin: ["view_audit", "manage_faculties", "manage_activities"],
   supervisor: [],
 } as const satisfies Record<UserRole, readonly string[]>;
 
