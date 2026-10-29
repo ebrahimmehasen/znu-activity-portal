@@ -22,6 +22,8 @@ npm run dev
 
 لو `DATABASE_URL` فاضي، الداتا بتتحفظ في `./.pglite`. للربط بـ Supabase حط الـ connection string في `DATABASE_URL`.
 
+> PGlite بيشتغل من process واحد بس: اقفل `npm run dev` قبل ما تشغّل `db:migrate` أو `db:seed`.
+
 ## الأوامر
 
 | الأمر | الوظيفة |

@@ -29,5 +29,20 @@ export function isPglite(url = process.env.DATABASE_URL ?? "") {
 
 const globalForDb = globalThis as unknown as { __znuDb?: DB };
 
-export const db: DB = globalForDb.__znuDb ?? createDb();
-if (process.env.NODE_ENV !== "production") globalForDb.__znuDb = db;
+function getDb(): DB {
+  globalForDb.__znuDb ??= createDb();
+  return globalForDb.__znuDb;
+}
+
+/**
+ * Connects on first use, not at import: `next build` imports server modules in
+ * parallel workers, and a file-based PGlite opened by several processes gets
+ * locked or corrupted.
+ */
+export const db: DB = new Proxy({} as DB, {
+  get(_target, prop) {
+    const real = getDb();
+    const value = Reflect.get(real, prop, real);
+    return typeof value === "function" ? value.bind(real) : value;
+  },
+});
