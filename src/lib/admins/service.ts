@@ -3,14 +3,11 @@ import { z } from "zod";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { recordAudit, type RequestCtx } from "@/lib/audit";
+import { ForbiddenError } from "@/lib/errors";
 import { deleteUserSessions, findActiveUserByUsername, type SessionUser } from "@/lib/auth/service";
 import { hashPassword, passwordSchema } from "@/lib/password";
 
-export class ForbiddenError extends Error {
-  constructor() {
-    super("forbidden");
-  }
-}
+export { ForbiddenError };
 
 /** Defense in depth: every mutation re-checks the actor, not just the page that calls it. */
 function assertSuperAdmin(actor: SessionUser) {
