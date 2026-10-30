@@ -42,7 +42,7 @@ npm run dev
 
    | المتغير | القيمة |
    |---|---|
-   | `DATABASE_URL` | من Supabase: **Connect → Transaction pooler** (بورت 6543) والباسورد مكان `[YOUR-PASSWORD]` |
+   | `DATABASE_URL` | من Supabase: **Connect → Session pooler** (بورت 5432) والباسورد مكان `[YOUR-PASSWORD]`. متستخدمش Transaction pooler (6543): بيعلّق مع الـ queries المتوازية |
    | `QR_ENCRYPTION_KEY` | **نفس القيمة** اللي استخدمتها قبل كده. لو اتغيرت، أكواد الـ QR اللي اتعملت مش هتشتغل |
    | `SEED_SUPER_ADMIN_USERNAME` / `SEED_SUPER_ADMIN_PASSWORD` | اختياري: بيتستخدموا بس لو مفيش سوبر أدمن في الداتابيز |
 

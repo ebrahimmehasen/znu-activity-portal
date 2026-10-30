@@ -14,9 +14,12 @@ export type DB = PostgresJsDatabase<typeof schema>;
  */
 export function createDb(url = process.env.DATABASE_URL ?? ""): DB {
   if (url.startsWith("postgres://") || url.startsWith("postgresql://")) {
-    // prepare: false is required by Supabase's transaction pooler. On Vercel each function
-    // instance keeps one connection so many instances don't exhaust the pooler.
-    const client = postgres(url, { prepare: false, max: process.env.VERCEL ? 1 : 10 });
+    // Use Supabase's *session* pooler (port 5432): postgres.js pipelines concurrent queries
+    // on a connection, and the transaction pooler (6543) hangs on pipelined queries.
+    // On Vercel each function instance keeps one connection and drops it when idle, so
+    // many instances don't exhaust the pooler.
+    if (/:6543\//.test(url)) console.warn("DATABASE_URL uses Supabase's transaction pooler (6543); use the session pooler (5432)");
+    const client = postgres(url, { prepare: false, max: process.env.VERCEL ? 1 : 10, idle_timeout: process.env.VERCEL ? 20 : undefined });
     return drizzlePostgres(client, { schema });
   }
   // Vercel's filesystem is read-only and per-instance: a PGlite fallback there would lose data.
