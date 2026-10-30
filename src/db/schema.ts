@@ -41,6 +41,8 @@ export const users = pgTable(
     passwordHash: text("password_hash").notNull(),
     role: userRole("role").notNull(),
     isActive: boolean("is_active").notNull().default(true),
+    // Supervisors' attendance QR (AES-GCM encrypted TOTP secret), created on first use.
+    qrSecret: text("qr_secret"),
     createdBy: integer("created_by"),
     ...timestamps,
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
@@ -207,6 +209,22 @@ export const students = pgTable(
   (t) => [index("students_phone_idx").on(t.phone), check("students_year_check", sql`${t.year} between 1 and 5`)],
 );
 
+export const studentSessions = pgTable(
+  "student_sessions",
+  {
+    // SHA-256 of the cookie token, like staff sessions.
+    id: varchar("id", { length: 64 }).primaryKey(),
+    studentId: integer("student_id")
+      .notNull()
+      .references(() => students.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    ip: varchar("ip", { length: 64 }),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("student_sessions_student_idx").on(t.studentId)],
+);
+
 export const bookingStatus = pgEnum("booking_status", ["pending", "confirmed", "cancelled", "waitlisted"]);
 export const bookingSource = pgEnum("booking_source", ["form", "manual"]);
 
@@ -231,6 +249,8 @@ export const bookings = pgTable(
     paymentRecordedBy: integer("payment_recorded_by").references(() => users.id),
     handledBy: integer("handled_by").references(() => users.id),
     handledAt: timestamp("handled_at", { withTimezone: true }),
+    // Attendance QR (AES-GCM encrypted TOTP secret) for confirmed bookings; cleared on cancel.
+    qrSecret: text("qr_secret"),
     ...timestamps,
   },
   (t) => [

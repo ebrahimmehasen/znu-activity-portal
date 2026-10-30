@@ -29,6 +29,13 @@
       "when": 1793349357630,
       "tag": "0003_supervisors_and_permissions",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793351373773,
+      "tag": "0004_student_portal_and_qr",
+      "breakpoints": true
     }
   ]
 }
