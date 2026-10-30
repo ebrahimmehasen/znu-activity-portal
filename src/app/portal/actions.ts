@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { markStudentRead } from "@/lib/announcements/service";
 import { recordAudit } from "@/lib/audit";
 import { getRequestCtx } from "@/lib/auth/session";
 import type { FormState } from "@/lib/form-state";
@@ -36,4 +37,12 @@ export async function studentLogout() {
   if (student) await recordAudit({ actor: { type: "student", id: student.id }, action: "student.logout" }, await getRequestCtx());
   await clearStudentCookie();
   redirect("/portal/login");
+}
+
+/** Called by the page once the announcements are on screen (the badge re-polls by itself). */
+export async function markStudentReadAction(ids: number[]) {
+  const student = await getCurrentStudent();
+  const parsed = z.array(z.number().int().positive()).max(100).safeParse(ids);
+  if (!student || !parsed.success) return;
+  await markStudentRead(student.id, parsed.data);
 }

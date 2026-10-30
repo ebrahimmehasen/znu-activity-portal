@@ -1,5 +1,6 @@
 import { LogoutButton } from "@/components/logout-button";
 import { STAFF_QR_KEY } from "@/components/qr/offline-store";
+import { staffUnreadCount } from "@/lib/announcements/service";
 import { requireUser } from "@/lib/auth/session";
 import { ROLE_LABELS, can } from "@/lib/authz";
 import { logout } from "./actions";
@@ -9,7 +10,14 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
   const user = await requireUser();
 
   const items: NavItem[] = [{ href: "/dashboard", label: "الرئيسية" }];
-  if (can(user, "view_trips")) items.push({ href: "/dashboard/trips", label: "الرحلات" });
+  if (can(user, "view_trips")) {
+    items.push({ href: "/dashboard/trips", label: "الرحلات" });
+    items.push({
+      href: "/dashboard/announcements",
+      label: "الإعلانات",
+      unread: { endpoint: "/dashboard/announcements/unread", initial: await staffUnreadCount(user) },
+    });
+  }
   if (can(user, "manage_supervisors")) items.push({ href: "/dashboard/supervisors", label: "المشرفين" });
   if (can(user, "manage_faculties")) items.push({ href: "/dashboard/faculties", label: "الكليات" });
   if (can(user, "manage_admins")) items.push({ href: "/dashboard/admins", label: "الأدمنز" });

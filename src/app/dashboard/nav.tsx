@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { UnreadBadge } from "@/components/unread-badge";
 
-export type NavItem = { href: string; label: string };
+/** `unread`: a polled count shown beside the label (announcements). */
+export type NavItem = { href: string; label: string; unread?: { endpoint: string; initial: number } };
 
 export function Nav({ items }: { items: NavItem[] }) {
   const pathname = usePathname();
@@ -21,6 +23,7 @@ export function Nav({ items }: { items: NavItem[] }) {
             }`}
           >
             {item.label}
+            {item.unread && <UnreadBadge endpoint={item.unread.endpoint} initial={item.unread.initial} refreshUnder={item.href} />}
           </Link>
         );
       })}

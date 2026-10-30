@@ -1,11 +1,12 @@
 import { and, desc, eq, exists, inArray, isNull, ne, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { activities, announcementReads, announcements, bookings, users, type AnnouncementAudience } from "@/db/schema";
+import { activities, announcementReads, announcements, bookings, users } from "@/db/schema";
 import { recordAudit, type RequestCtx } from "@/lib/audit";
 import type { SessionUser } from "@/lib/auth/service";
 import { can } from "@/lib/authz";
 import { ForbiddenError } from "@/lib/errors";
+import { MAX_ANNOUNCEMENT_LENGTH } from "./labels";
 import { canViewTrip, visibleTripsCondition } from "@/lib/supervisors/scope";
 import { getTrip } from "@/lib/trips/service";
 
@@ -19,12 +20,6 @@ import { getTrip } from "@/lib/trips/service";
 type Fail = { ok: false; error: string };
 type Result<T = object> = ({ ok: true } & T) | Fail;
 
-export const AUDIENCE_LABELS: Record<AnnouncementAudience, string> = {
-  supervisors: "المشرفين بس",
-  all: "كل الرحلة",
-};
-
-export const MAX_ANNOUNCEMENT_LENGTH = 1000;
 const LIST_LIMIT = 100;
 
 export const announcementInputSchema = z.object({

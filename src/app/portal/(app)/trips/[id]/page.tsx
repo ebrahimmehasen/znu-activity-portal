@@ -1,13 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AnnouncementList } from "@/components/announcements/announcement-list";
+import { MarkRead } from "@/components/announcements/mark-read";
 import { Alert, Badge, Card, PageHeader } from "@/components/ui";
+import { listStudentAnnouncements } from "@/lib/announcements/service";
 import { BOOKING_STATUS_LABELS } from "@/lib/bookings/service";
 import { formatDate, formatTime } from "@/lib/dates";
 import { getStudentTrip } from "@/lib/students/auth";
 import { requireStudent } from "@/lib/students/session";
 import { STATUS_LABELS, STATUS_TONES } from "@/lib/trips/labels";
 import { getSchedule } from "@/lib/trips/service";
+import { markStudentReadAction } from "../../../actions";
 import { BOOKING_TONES } from "../../booking-tones";
 
 export const metadata: Metadata = { title: "تفاصيل الرحلة" };
@@ -35,7 +39,7 @@ export default async function StudentTripPage({ params }: { params: Promise<{ id
   const row = Number.isInteger(id) ? await getStudentTrip(student.id, id) : null;
   if (!row) notFound();
   const { booking, trip, busName } = row;
-  const schedule = await getSchedule(trip.id);
+  const [schedule, news] = await Promise.all([getSchedule(trip.id), listStudentAnnouncements(student.id, trip.id)]);
   const note = BOOKING_NOTES[booking.status];
 
   return (
@@ -86,6 +90,14 @@ export default async function StudentTripPage({ params }: { params: Promise<{ id
             <a href="/portal/qr" className="inline-flex rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground">
               افتح QR الحضور
             </a>
+          </Card>
+        )}
+
+        {news.length > 0 && (
+          <Card>
+            <h2 className="mb-3 font-semibold">الإعلانات</h2>
+            <MarkRead ids={news.filter((a) => !a.read).map((a) => a.id)} action={markStudentReadAction} />
+            <AnnouncementList items={news} showAudience={false} />
           </Card>
         )}
 

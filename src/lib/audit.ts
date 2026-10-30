@@ -86,4 +86,6 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "attendance.voided": "إلغاء تسجيل حضور",
   "attendance.restored": "إرجاع طالب متعلّم غياب",
   "attendance.supervisor_removed": "إلغاء حضور مشرف",
+  "announcement.sent": "إرسال إعلان",
+  "announcement.deleted": "حذف إعلان",
 };
