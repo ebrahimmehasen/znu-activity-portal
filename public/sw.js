@@ -1,15 +1,18 @@
 /*
  * Service worker for the PWA (plan §6.1, §7).
  * - Build assets (/_next/static, hashed) are cache-first.
- * - Only the QR pages are kept for offline use; they render no personal data on the
- *   server, the QR comes from the phone's saved copy. They load network-first.
+ * - Only the QR pages and the attendance scanner are kept for offline use; they render
+ *   no roster or QR data on the server, that comes from the phone's saved copy.
+ *   They load network-first.
  * - Any other page that can't load offline falls back to /offline.
  * Bump VERSION to drop old caches.
  */
-const VERSION = "v1";
+const VERSION = "v2";
 const STATIC_CACHE = `znu-static-${VERSION}`;
 const PAGES_CACHE = `znu-pages-${VERSION}`;
 const OFFLINE_PAGES = ["/portal/qr", "/dashboard/my-qr"];
+const OFFLINE_PATTERNS = [/^\/dashboard\/trips\/\d+\/scan$/];
+const isOfflinePage = (path) => OFFLINE_PAGES.includes(path) || OFFLINE_PATTERNS.some((re) => re.test(path));
 const FALLBACK = "/offline";
 const NETWORK_TIMEOUT_MS = 4000;
 
@@ -30,7 +33,7 @@ self.addEventListener("message", (event) => {
   if (event.origin && event.origin !== self.location.origin) return;
   const { type, paths } = event.data || {};
   if (type === "warm" && Array.isArray(paths)) {
-    event.waitUntil(warm(paths.filter((p) => OFFLINE_PAGES.includes(p))));
+    event.waitUntil(warm(paths.filter((p) => typeof p === "string" && isOfflinePage(p))));
   }
 });
 
@@ -86,7 +89,7 @@ self.addEventListener("fetch", (event) => {
 
   if (req.mode !== "navigate") return;
 
-  if (OFFLINE_PAGES.includes(url.pathname)) {
+  if (isOfflinePage(url.pathname)) {
     event.respondWith(
       (async () => {
         const cache = await caches.open(PAGES_CACHE);
