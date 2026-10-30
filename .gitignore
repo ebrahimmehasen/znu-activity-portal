@@ -45,3 +45,6 @@ next-env.d.ts
 /.pglite
 
 /.claude
+
+# Vercel CLI link
+.vercel
