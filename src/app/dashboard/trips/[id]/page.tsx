@@ -10,6 +10,7 @@ import { assignment } from "@/lib/supervisors/scope";
 import { requireVisibleTrip } from "@/lib/trips/access";
 import { getSchedule } from "@/lib/trips/service";
 import { deleteTripAction } from "../actions";
+import { TripRunButtons } from "./attendance/trip-run";
 import { BookingsCard } from "./bookings/bookings-card";
 import { BusesCard } from "./buses/buses-card";
 import { TripSupervisorsCard } from "./supervisors/supervisors-card";
@@ -28,6 +29,7 @@ function Info({ label, children }: { label: string; children: React.ReactNode })
 export default async function TripPage({ params }: PageProps<"/dashboard/trips/[id]">) {
   const { actor, trip } = await requireVisibleTrip((await params).id);
   const manager = can(actor, "manage_activities");
+  const attendance = manager || can(actor, "take_attendance") || can(actor, "manage_gatherings");
   const [schedule, mine] = await Promise.all([
     getSchedule(trip.id),
     actor.role === "supervisor" ? assignment(actor.id, trip.id) : Promise.resolve(null),
@@ -40,14 +42,19 @@ export default async function TripPage({ params }: PageProps<"/dashboard/trips/[
         title={trip.title}
         description={formatDate(trip.date)}
         actions={
-          manager && (
-          <div className="flex gap-2">
-            {trip.status !== "finished" && (
+          <div className="flex flex-wrap gap-2">
+            {manager && <TripRunButtons trip={trip} />}
+            {attendance && trip.status !== "upcoming" && (
+              <Link href={`/dashboard/trips/${trip.id}/attendance`} className="rounded-lg border border-border bg-surface px-4 py-2.5 text-sm font-semibold">
+                الحضور والتجمعات
+              </Link>
+            )}
+            {manager && trip.status !== "finished" && (
               <Link href={`/dashboard/trips/${trip.id}/edit`} className="rounded-lg border border-border bg-surface px-4 py-2.5 text-sm font-semibold">
                 تعديل
               </Link>
             )}
-            {trip.status === "upcoming" && (
+            {manager && trip.status === "upcoming" && (
               <form action={deleteTripAction}>
                 <input type="hidden" name="id" value={trip.id} />
                 <ConfirmButton variant="danger" message={`حذف رحلة "${trip.title}" نهائيًا؟`}>
@@ -56,7 +63,6 @@ export default async function TripPage({ params }: PageProps<"/dashboard/trips/[
               </form>
             )}
           </div>
-          )
         }
       />
 
