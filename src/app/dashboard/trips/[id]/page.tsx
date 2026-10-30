@@ -8,6 +8,7 @@ import { formatDate, formatTime } from "@/lib/dates";
 import { STATUS_LABELS, STATUS_TONES } from "@/lib/trips/labels";
 import { getSchedule, getTrip } from "@/lib/trips/service";
 import { deleteTripAction } from "../actions";
+import { BookingsCard } from "./bookings/bookings-card";
 import { BusesCard } from "./buses/buses-card";
 
 export const metadata: Metadata = { title: "تفاصيل الرحلة" };
@@ -57,7 +58,6 @@ export default async function TripPage({ params }: PageProps<"/dashboard/trips/[
           <Card>
             <div className="mb-4 flex items-center gap-2">
               <Badge tone={STATUS_TONES[trip.status]}>{STATUS_LABELS[trip.status]}</Badge>
-              <Badge tone={trip.bookingOpen ? "success" : "neutral"}>{trip.bookingOpen ? "الحجز مفتوح" : "الحجز مقفول"}</Badge>
             </div>
             <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               <Info label="التحرك">{formatTime(trip.startTime)}</Info>
@@ -67,6 +67,8 @@ export default async function TripPage({ params }: PageProps<"/dashboard/trips/[
             </dl>
             {trip.description && <p className="mt-4 whitespace-pre-line text-sm leading-7">{trip.description}</p>}
           </Card>
+
+          <BookingsCard trip={trip} />
 
           <Card>
             <h2 className="mb-3 font-semibold">برنامج الرحلة</h2>
