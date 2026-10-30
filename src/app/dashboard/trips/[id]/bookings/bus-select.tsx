@@ -19,7 +19,9 @@ export function BusSelect({
     <form action={action} className="inline-flex flex-col gap-1">
       <input type="hidden" name="activityId" value={activityId} />
       <input type="hidden" name="id" value={bookingId} />
+      {/* Keyed so the saved bus shows: React resets uncontrolled fields after an action. */}
       <select
+        key={busId ?? "none"}
         name="busId"
         aria-label="الأتوبيس"
         defaultValue={busId ?? ""}
