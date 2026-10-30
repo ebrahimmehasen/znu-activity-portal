@@ -32,6 +32,7 @@ export async function tripDashboard(actor: SessionUser, trip: Activity) {
         year: students.year,
         facultyName: faculties.name,
         busId: bookings.busId,
+        paidAt: bookings.paidAt,
       })
       .from(bookings)
       .innerJoin(students, eq(students.id, bookings.studentId))
@@ -54,8 +55,11 @@ export async function tripDashboard(actor: SessionUser, trip: Activity) {
 
   const rows = roster.map((s) => {
     const finalAbsent = first ? byKey.get(`${first.id}:${s.bookingId}`)?.status === "absent" : false;
-    const cells: DashboardCell[] = cps.map((cp) => (cp.sortOrder > 1 && finalAbsent ? null : rowState(byKey.get(`${cp.id}:${s.bookingId}`) ?? null)));
-    return { ...s, busName: s.busId ? (busName.get(s.busId) ?? null) : null, finalAbsent, cells };
+    const recs = cps.map((cp) => (cp.sortOrder > 1 && finalAbsent ? undefined : (byKey.get(`${cp.id}:${s.bookingId}`) ?? null)));
+    const cells: DashboardCell[] = recs.map((r) => (r === undefined ? null : rowState(r)));
+    // When each one was scanned or marked (null: no record, or marked absent).
+    const times = recs.map((r) => (r && r.status !== "absent" ? r.recordedAt : null));
+    return { ...s, busName: s.busId ? (busName.get(s.busId) ?? null) : null, finalAbsent, cells, times };
   });
 
   const tally = (subset: typeof rows): CheckpointTally[] =>

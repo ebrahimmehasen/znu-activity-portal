@@ -9,8 +9,8 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
-  // PGlite (local dev DB) ships WASM files that must not be bundled.
-  serverExternalPackages: ["@electric-sql/pglite"],
+  // PGlite (local dev DB) ships WASM files, and exceljs is a large CommonJS library: neither is bundled.
+  serverExternalPackages: ["@electric-sql/pglite", "exceljs"],
   turbopack: {
     rules: {
       "*.css": {

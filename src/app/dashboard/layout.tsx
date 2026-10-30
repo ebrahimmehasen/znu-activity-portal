@@ -19,6 +19,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
     });
   }
   if (can(user, "manage_supervisors")) items.push({ href: "/dashboard/supervisors", label: "المشرفين" });
+  if (can(user, "manage_activities")) items.push({ href: "/dashboard/students", label: "الطلبة" });
   if (can(user, "manage_faculties")) items.push({ href: "/dashboard/faculties", label: "الكليات" });
   if (can(user, "manage_admins")) items.push({ href: "/dashboard/admins", label: "الأدمنز" });
   if (can(user, "manage_settings")) items.push({ href: "/dashboard/settings", label: "الإعدادات" });
@@ -28,7 +29,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
 
   return (
     <div className="flex min-h-full flex-1 flex-col">
-      <header className="border-b border-border bg-surface">
+      <header className="border-b border-border bg-surface print:hidden">
         <div className="mx-auto max-w-6xl space-y-3 px-4 py-3">
           <div className="flex items-center justify-between gap-3">
             <span className="font-bold text-primary">بوابة الأنشطة</span>
@@ -42,7 +43,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
           <Nav items={items} />
         </div>
       </header>
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">{children}</main>
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 print:max-w-none print:p-0">{children}</main>
     </div>
   );
 }

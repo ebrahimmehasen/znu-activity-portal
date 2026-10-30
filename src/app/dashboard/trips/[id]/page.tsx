@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ConfirmButton } from "@/components/confirm-button";
+import { PurgeForm } from "@/components/purge-form";
 import { Badge, Card, PageHeader } from "@/components/ui";
 import { can } from "@/lib/authz";
 import { listBuses } from "@/lib/buses/service";
@@ -9,6 +10,7 @@ import { STATUS_LABELS, STATUS_TONES } from "@/lib/trips/labels";
 import { assignment } from "@/lib/supervisors/scope";
 import { requireVisibleTrip } from "@/lib/trips/access";
 import { getSchedule } from "@/lib/trips/service";
+import { purgeTripAction } from "../../purge-actions";
 import { deleteTripAction } from "../actions";
 import { AnnouncementsCard } from "./announcements-card";
 import { TripRunButtons } from "./attendance/trip-run";
@@ -53,6 +55,11 @@ export default async function TripPage({ params }: PageProps<"/dashboard/trips/[
             {attendance && trip.status !== "upcoming" && (
               <Link href={`/dashboard/trips/${trip.id}/attendance`} className="rounded-lg border border-border bg-surface px-4 py-2.5 text-sm font-semibold">
                 الحضور والتجمعات
+              </Link>
+            )}
+            {manager && (
+              <Link href={`/dashboard/trips/${trip.id}/report`} className="rounded-lg border border-border bg-surface px-4 py-2.5 text-sm font-semibold">
+                التقرير
               </Link>
             )}
             {manager && trip.status !== "finished" && (
@@ -112,6 +119,23 @@ export default async function TripPage({ params }: PageProps<"/dashboard/trips/[
 
           {manager && trip.busesEnabled && <BusesCard trip={trip} />}
           {manager && <TripSupervisorsCard trip={trip} />}
+
+          {manager && trip.status === "finished" && (
+            <details className="rounded-xl border border-danger/30 bg-danger/5 p-4">
+              <summary className="cursor-pointer font-semibold text-danger">مسح بيانات الرحلة</summary>
+              <p className="my-3 text-sm">
+                هتتمسح الرحلة وكل الحجوزات والحضور والتجمعات والإعلانات بتاعتها نهائيًا. نزّل التقرير الأول لو محتاجه. الطلبة نفسهم مش
+                هيتمسحوا.
+              </p>
+              <PurgeForm
+                action={purgeTripAction}
+                id={trip.id}
+                expected={trip.title}
+                prompt="اكتب اسم الرحلة للتأكيد"
+                confirmMessage={`مسح كل بيانات "${trip.title}" نهائيًا؟ مفيش رجوع.`}
+              />
+            </details>
+          )}
         </div>
 
         <Card className="h-fit">

@@ -89,4 +89,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "attendance.supervisor_removed": "إلغاء حضور مشرف",
   "announcement.sent": "إرسال إعلان",
   "announcement.deleted": "حذف إعلان",
+  "report.exported": "تصدير تقرير رحلة",
+  "activity.purged": "مسح بيانات رحلة",
+  "student.purged": "مسح بيانات طالب",
 };

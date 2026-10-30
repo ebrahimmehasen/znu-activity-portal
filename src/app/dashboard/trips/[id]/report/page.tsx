@@ -1,0 +1,132 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { Card } from "@/components/ui";
+import { can } from "@/lib/authz";
+import { tripReport } from "@/lib/reports/service";
+import { requireVisibleTrip } from "@/lib/trips/access";
+import { PrintButton } from "./print-button";
+
+export const metadata: Metadata = { title: "تقرير الرحلة" };
+
+const th = "border border-border bg-background px-2 py-1.5 text-start font-semibold";
+const td = "border border-border px-2 py-1.5";
+
+/** The report on screen and in print: "طباعة / PDF" opens the browser's print dialog (Save as PDF). */
+export default async function TripReportPage({ params }: PageProps<"/dashboard/trips/[id]/report">) {
+  const { actor, trip } = await requireVisibleTrip((await params).id);
+  if (!can(actor, "manage_activities")) notFound();
+  const r = await tripReport(actor, trip);
+
+  return (
+    <div className="space-y-4 print:space-y-3 print:text-[11px]">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold">تقرير: {trip.title}</h1>
+          <p className="text-sm text-muted">جامعة الزقازيق الأهلية · بوابة الأنشطة</p>
+        </div>
+        <div className="flex flex-wrap gap-2 print:hidden">
+          <a href={`/dashboard/trips/${trip.id}/report/xlsx`} className="rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground">
+            تحميل Excel
+          </a>
+          <PrintButton />
+          <Link href={`/dashboard/trips/${trip.id}`} className="rounded-lg border border-border bg-surface px-4 py-2.5 text-sm font-semibold">
+            الرحلة
+          </Link>
+        </div>
+      </div>
+
+      <Card className="print:border-0 print:p-0 print:shadow-none">
+        <h2 className="mb-2 font-semibold">الملخص</h2>
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4 print:grid-cols-4">
+          {r.summary.map(([label, value]) => (
+            <div key={label}>
+              <dt className="text-xs text-muted">{label}</dt>
+              <dd className="font-medium">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      </Card>
+
+      {r.checkpoints.length > 0 && (
+        <Card className="overflow-x-auto print:overflow-visible print:border-0 print:p-0 print:shadow-none">
+          <h2 className="mb-2 font-semibold">التجمعات</h2>
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr>
+                {["التجمع", "حاضر", "متأخر", "مستني التأكيد", "لم يحضر", "غياب", "الكشف"].map((h) => (
+                  <th key={h} className={th}>
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {r.checkpoints.map((cp) => (
+                <tr key={cp.name}>
+                  <td className={td}>
+                    {cp.name} {cp.time && <span className="text-muted">({cp.time})</span>}
+                  </td>
+                  <td className={td}>{cp.tally.present}</td>
+                  <td className={td}>{cp.tally.late}</td>
+                  <td className={td}>{cp.tally.pending}</td>
+                  <td className={td}>{cp.tally.unrecorded}</td>
+                  <td className={td}>{cp.first ? cp.tally.absent : "—"}</td>
+                  <td className={td}>{cp.tally.total}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      )}
+
+      <Card className="overflow-x-auto print:overflow-visible print:border-0 print:p-0 print:shadow-none">
+        <h2 className="mb-2 font-semibold">الكشف ({r.rows.length})</h2>
+        {r.rows.length === 0 ? (
+          <p className="text-sm text-muted">مفيش حجوزات مؤكدة.</p>
+        ) : (
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr>
+                <th className={th}>#</th>
+                <th className={th}>الاسم</th>
+                <th className={th}>الكلية</th>
+                <th className={th}>الفرقة</th>
+                <th className={th}>الهاتف</th>
+                {r.showBus && <th className={th}>الأتوبيس</th>}
+                {r.showPaid && <th className={th}>الدفع</th>}
+                {r.checkpoints.map((cp) => (
+                  <th key={cp.name} className={th}>
+                    {cp.name}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {r.rows.map((row) => (
+                <tr key={row.n} className="break-inside-avoid">
+                  <td className={td}>{row.n}</td>
+                  <td className={`${td} whitespace-nowrap`}>{row.name}</td>
+                  <td className={td}>{row.faculty}</td>
+                  <td className={`${td} whitespace-nowrap`}>{row.year}</td>
+                  <td className={td}>
+                    <a href={`tel:${row.phone}`} className="ltr-nums text-primary print:text-foreground" dir="ltr">
+                      {row.phone}
+                    </a>
+                  </td>
+                  {r.showBus && <td className={td}>{row.bus}</td>}
+                  {r.showPaid && <td className={td}>{row.paid}</td>}
+                  {row.cells.map((c, i) => (
+                    <td key={i} className={`${td} whitespace-nowrap`}>
+                      {c}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Card>
+    </div>
+  );
+}
