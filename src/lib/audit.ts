@@ -34,6 +34,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "auth.logout": "تسجيل خروج",
   "auth.password_changed": "تغيير الباسورد",
   "user.super_admin_seeded": "إنشاء السوبر أدمن",
+  "user.super_admin_reset": "تغيير يوزر وباسورد السوبر أدمن من السيرفر",
   "admin.created": "إضافة أدمن",
   "admin.frozen": "تجميد أدمن",
   "admin.unfrozen": "إلغاء تجميد أدمن",
