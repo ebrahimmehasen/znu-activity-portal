@@ -12,7 +12,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title: { default: `${name} — ${t("جامعة الزقازيق الأهلية")}`, template: `%s | ${name}` },
     description: t("بوابة إدارة أنشطة جامعة الزقازيق الأهلية"),
     appleWebApp: { capable: true, title: name, statusBarStyle: "default" },
-    icons: { apple: "/pwa-icon/192" },
+    icons: { apple: "/icon-192.png" },
   };
 }
 

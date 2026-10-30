@@ -2,6 +2,7 @@ import Link from "next/link";
 import { LogoutButton } from "@/components/logout-button";
 import { STUDENT_QR_KEY } from "@/components/qr/offline-store";
 import { UnreadBadge } from "@/components/unread-badge";
+import { Logo } from "@/components/logo";
 import { Preferences } from "@/components/preferences";
 import { getT, getTheme } from "@/i18n/server";
 import { studentUnreadCount } from "@/lib/announcements/service";
@@ -15,7 +16,8 @@ export default async function PortalLayout({ children }: { children: React.React
     <div className="flex min-h-full flex-1 flex-col">
       <header className="sticky top-0 z-20 border-b border-border bg-surface glass">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">
-          <Link href="/portal" className="font-bold text-primary">
+          <Link href="/portal" className="flex items-center gap-2 font-bold text-primary">
+            <Logo size={36} />
             {t("بوابة الطلاب")}
           </Link>
           <div className="flex items-center gap-3 text-sm">

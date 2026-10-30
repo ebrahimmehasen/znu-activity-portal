@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getT } from "@/i18n/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Logo } from "@/components/logo";
 import { Preferences } from "@/components/preferences";
 import { Card } from "@/components/ui";
 import { getTheme } from "@/i18n/server";
@@ -22,6 +23,7 @@ export default async function StudentLoginPage() {
         <Preferences theme={theme} />
       </div>
       <Card className="w-full max-w-sm p-6 sm:p-8">
+        <Logo size={88} className="mx-auto mb-3" />
         <h1 className="text-center text-xl font-bold text-primary">{t("بوابة الطلاب")}</h1>
         <p className="mb-6 mt-1 text-center text-sm text-muted">{t("ادخل برقم الهاتف والرقم القومي اللذين حجزت بهما")}</p>
         <StudentLoginForm />

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Logo } from "@/components/logo";
 import { Preferences } from "@/components/preferences";
 import { getT, getTheme } from "@/i18n/server";
 import { getCurrentUser } from "@/lib/auth/session";
@@ -17,6 +18,7 @@ export default async function Home() {
         <Preferences theme={theme} />
       </div>
       <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-8 text-center glass">
+        <Logo size={112} className="mx-auto mb-4" />
         <h1 className="text-2xl font-bold text-primary">{t("بوابة الأنشطة")}</h1>
         <p className="mt-2 text-muted">{t("جامعة الزقازيق الأهلية")}</p>
         <div className="mt-8 space-y-3">

@@ -3,6 +3,7 @@
  * `{name}` placeholders are filled in by `t(text, vars)`.
  */
 export const EN: Record<string, string> = {
+  "شعار جامعة الزقازيق الأهلية": "Zagazig National University logo",
   "{amount} جنيه": "{amount} EGP",
   "{buses} حافلة · {seats} مقعد": "{buses} buses · {seats} seats",
   "{bus} ممتلئة": "{bus} is full",

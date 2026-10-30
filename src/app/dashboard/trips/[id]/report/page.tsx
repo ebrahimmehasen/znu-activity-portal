@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getI18n, getT } from "@/i18n/server";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Logo } from "@/components/logo";
 import { Card } from "@/components/ui";
 import { can } from "@/lib/authz";
 import { tripReport } from "@/lib/reports/service";
@@ -25,11 +26,14 @@ export default async function TripReportPage({ params }: PageProps<"/dashboard/t
   return (
     <div className="space-y-4 print:space-y-3 print:text-[11px]">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold">{t("تقرير: {trip}", { trip: trip.title })}</h1>
-          <p className="text-sm text-muted">
-            {t("جامعة الزقازيق الأهلية")} · {t("بوابة الأنشطة")}
-          </p>
+        <div className="flex items-center gap-3">
+          <Logo size={56} />
+          <div>
+            <h1 className="text-xl font-bold">{t("تقرير: {trip}", { trip: trip.title })}</h1>
+            <p className="text-sm text-muted">
+              {t("جامعة الزقازيق الأهلية")} · {t("بوابة الأنشطة")}
+            </p>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2 print:hidden">
           <a href={`/dashboard/trips/${trip.id}/report/xlsx`} className="rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground">

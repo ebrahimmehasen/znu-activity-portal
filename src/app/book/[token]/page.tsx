@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { Logo } from "@/components/logo";
 import { Preferences } from "@/components/preferences";
 import { Card } from "@/components/ui";
 import { getI18n, getT, getTheme } from "@/i18n/server";
@@ -35,8 +36,11 @@ export default async function BookPage({ params }: PageProps<"/book/[token]">) {
   return (
     <main className="mx-auto w-full max-w-2xl space-y-4 p-4 sm:py-8">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-semibold text-primary">
-          {t("بوابة الأنشطة")} — {t("جامعة الزقازيق الأهلية")}
+        <p className="flex items-center gap-2 text-sm font-semibold text-primary">
+          <Logo size={40} />
+          <span>
+            {t("بوابة الأنشطة")} — {t("جامعة الزقازيق الأهلية")}
+          </span>
         </p>
         <Preferences theme={theme} />
       </div>

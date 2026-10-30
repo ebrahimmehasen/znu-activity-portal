@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getT } from "@/i18n/server";
+import { Logo } from "@/components/logo";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: (await getT())("لا يوجد اتصال") };
@@ -11,6 +12,7 @@ export default async function OfflinePage() {
   return (
     <main className="flex flex-1 items-center justify-center p-4">
       <div className="w-full max-w-sm space-y-4 rounded-2xl border border-border bg-surface p-6 text-center glass">
+        <Logo size={72} className="mx-auto" />
         <h1 className="text-xl font-bold">{t("لا يوجد اتصال بالإنترنت")}</h1>
         <p className="text-sm text-muted">{t("هذه الصفحة تحتاج إلى اتصال بالإنترنت. يعمل رمز الحضور دون إنترنت إذا فتحته من قبل وأنت متصل.")}</p>
         <div className="flex flex-col gap-2">

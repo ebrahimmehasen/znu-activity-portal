@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { LogoutButton } from "@/components/logout-button";
 import { STAFF_QR_KEY } from "@/components/qr/offline-store";
+import { Logo } from "@/components/logo";
 import { Preferences } from "@/components/preferences";
 import { getT, getTheme } from "@/i18n/server";
 import { staffUnreadCount } from "@/lib/announcements/service";
@@ -35,7 +37,10 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
       <header className="sticky top-0 z-20 border-b border-border bg-surface glass print:hidden">
         <div className="mx-auto max-w-6xl space-y-3 px-4 py-3">
           <div className="flex items-center justify-between gap-3">
-            <span className="font-bold text-primary">{t("بوابة الأنشطة")}</span>
+            <Link href="/dashboard" className="flex items-center gap-2 font-bold text-primary">
+              <Logo size={36} />
+              {t("بوابة الأنشطة")}
+            </Link>
             <div className="flex items-center gap-3 text-sm">
               <span className="hidden text-muted sm:inline">
                 {user.name} · {t(ROLE_LABELS[user.role])}

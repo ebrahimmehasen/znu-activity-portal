@@ -7,10 +7,12 @@
  * - Any other page that can't load offline falls back to /offline.
  * Bump VERSION to drop old caches.
  */
-const VERSION = "v2";
+const VERSION = "v3";
 const STATIC_CACHE = `znu-static-${VERSION}`;
 const PAGES_CACHE = `znu-pages-${VERSION}`;
 const OFFLINE_PAGES = ["/portal/qr", "/dashboard/my-qr"];
+// Logo, app icons and the background photo: they rarely change and offline pages use them.
+const STATIC_FILES = /^\/(logo\.webp|icon-\d+\.png|campus-bg(-sm)?\.webp)$/;
 const OFFLINE_PATTERNS = [/^\/dashboard\/trips\/\d+\/scan$/];
 const isOfflinePage = (path) => OFFLINE_PAGES.includes(path) || OFFLINE_PATTERNS.some((re) => re.test(path));
 const FALLBACK = "/offline";
@@ -74,7 +76,7 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
-  if (url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/pwa-icon/")) {
+  if (url.pathname.startsWith("/_next/static/") || STATIC_FILES.test(url.pathname)) {
     event.respondWith(
       caches.open(STATIC_CACHE).then(async (cache) => {
         const hit = await cache.match(req);
