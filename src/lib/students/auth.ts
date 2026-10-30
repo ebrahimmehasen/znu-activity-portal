@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { and, asc, desc, eq, gt, lt, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { activities, bookings, buses, studentSessions, students } from "@/db/schema";
+import { finalAbsentCondition } from "@/lib/attendance/service";
 import { recordAudit, type RequestCtx } from "@/lib/audit";
 import { hashToken } from "@/lib/auth/service";
 import { ensureBookingSecret } from "@/lib/qr/secrets";
@@ -139,7 +140,7 @@ export type OfflineQr = {
 
 /**
  * What the phone keeps for offline QR: confirmed bookings of trips that haven't
- * finished. Cancelled bookings drop out here, so the next sync removes them.
+ * finished, minus final absentees. Cancelled bookings drop out here, so the next sync removes them.
  */
 export async function offlineQrData(studentId: number): Promise<OfflineQr[]> {
   const rows = await db
@@ -147,7 +148,8 @@ export async function offlineQrData(studentId: number): Promise<OfflineQr[]> {
     .from(bookings)
     .innerJoin(activities, eq(activities.id, bookings.activityId))
     .leftJoin(buses, eq(buses.id, bookings.busId))
-    .where(and(eq(bookings.studentId, studentId), eq(bookings.status, "confirmed")))
+    // Marked absent in the first gathering means out of the trip: no QR (plan §7).
+    .where(and(eq(bookings.studentId, studentId), eq(bookings.status, "confirmed"), sql`not ${finalAbsentCondition()}`))
     .orderBy(asc(activities.date));
 
   const result: OfflineQr[] = [];
