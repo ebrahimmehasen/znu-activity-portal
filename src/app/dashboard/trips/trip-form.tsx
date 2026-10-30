@@ -74,7 +74,7 @@ export function TripForm({ initial }: { initial: TripFormValues }) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="max-w-3xl space-y-5">
+    <form method="post" onSubmit={onSubmit} className="max-w-3xl space-y-5">
       {initial.id && <input type="hidden" name="id" value={initial.id} />}
       <input type="hidden" name="schedule" value={JSON.stringify(rows.map(({ time, title, notes }) => ({ time, title, notes })))} />
       {state.ok === false && <Alert>{state.message ?? "راجع البيانات اللي عليها علامة"}</Alert>}
