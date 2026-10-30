@@ -54,7 +54,7 @@ const audit = (actor: SessionUser, action: string, subjectType: string, subjectI
   recordAudit({ actor: { type: "user", id: actor.id }, action, subjectType, subjectId, meta }, ctx);
 
 /** Standing records: not rejected by the QR check and not voided by an admin. */
-const activeRecord = () => and(isNull(attendances.rejectedReason), isNull(attendances.voidedAt));
+export const activeRecord = () => and(isNull(attendances.rejectedReason), isNull(attendances.voidedAt));
 
 /** On `bookings`: marked absent in the first gathering (final absence). */
 export function finalAbsentCondition(): SQL {
