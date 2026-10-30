@@ -32,11 +32,16 @@ export function cairoInstant(isoDate: string, time: string) {
   return new Date(guess);
 }
 
-const clockFmt = new Intl.DateTimeFormat("ar-EG", { timeZone: CAIRO_TZ, hour: "numeric", minute: "2-digit" });
+type Lang = "ar" | "en";
+const INTL: Record<Lang, string> = { ar: "ar-EG", en: "en-GB" };
+const clockFmt = {
+  ar: new Intl.DateTimeFormat(INTL.ar, { timeZone: CAIRO_TZ, hour: "numeric", minute: "2-digit" }),
+  en: new Intl.DateTimeFormat(INTL.en, { timeZone: CAIRO_TZ, hour: "numeric", minute: "2-digit", hour12: true }),
+};
 
-/** A timestamp as a Cairo clock time, e.g. "٧:٠٥ ص". */
-export function formatClock(d: Date | null | undefined) {
-  return d ? clockFmt.format(d) : "";
+/** A timestamp as a Cairo clock time, e.g. "٧:٠٥ ص" / "7:05 am". */
+export function formatClock(d: Date | null | undefined, lang: Lang = "ar") {
+  return d ? clockFmt[lang].format(d) : "";
 }
 
 export function isValidIsoDate(value: string) {
@@ -45,10 +50,23 @@ export function isValidIsoDate(value: string) {
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === value;
 }
 
-const dateFmt = new Intl.DateTimeFormat("ar-EG", { dateStyle: "full", timeZone: "UTC" });
+const dateFmt = {
+  ar: new Intl.DateTimeFormat(INTL.ar, { dateStyle: "full", timeZone: "UTC" }),
+  en: new Intl.DateTimeFormat(INTL.en, { dateStyle: "full", timeZone: "UTC" }),
+};
 
-export function formatDate(isoDate: string) {
-  return dateFmt.format(new Date(`${isoDate}T00:00:00Z`));
+export function formatDate(isoDate: string, lang: Lang = "ar") {
+  return dateFmt[lang].format(new Date(`${isoDate}T00:00:00Z`));
+}
+
+const stampFmt = {
+  ar: new Intl.DateTimeFormat(INTL.ar, { timeZone: CAIRO_TZ, day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }),
+  en: new Intl.DateTimeFormat(INTL.en, { timeZone: CAIRO_TZ, day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true }),
+};
+
+/** A timestamp as a short Cairo date and time, e.g. "٣٠ أكتوبر، ٥:٥٩ م". */
+export function formatStamp(d: Date, lang: Lang = "ar") {
+  return stampFmt[lang].format(d);
 }
 
 /** Postgres returns "HH:MM:SS"; the UI and <input type="time"> use "HH:MM". */
@@ -56,10 +74,10 @@ export function shortTime(t: string | null | undefined) {
   return t ? t.slice(0, 5) : "";
 }
 
-export function formatTime(t: string | null | undefined) {
+export function formatTime(t: string | null | undefined, lang: Lang = "ar") {
   if (!t) return "";
   const [h, m] = t.split(":").map(Number);
-  const suffix = h < 12 ? "ص" : "م";
+  const suffix = lang === "en" ? (h < 12 ? "am" : "pm") : h < 12 ? "ص" : "م";
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return `${h12}:${String(m).padStart(2, "0")} ${suffix}`;
 }

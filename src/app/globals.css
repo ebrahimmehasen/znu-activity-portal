@@ -2,6 +2,7 @@
 @import "@fontsource-variable/cairo";
 
 :root {
+  color-scheme: light;
   --background: #f6f7f9;
   --surface: #ffffff;
   --foreground: #14181f;
@@ -12,6 +13,36 @@
   --danger: #b42318;
   --warning: #b54708;
   --success: #067647;
+}
+
+/* Dark: chosen explicitly, or following the device when no choice was made. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --background: #0e1217;
+    --surface: #161b22;
+    --foreground: #e6e9ee;
+    --muted: #9aa5b4;
+    --border: #2a313c;
+    --primary: #3fb59a;
+    --primary-foreground: #06201a;
+    --danger: #f2766b;
+    --warning: #f0a35c;
+    --success: #4cc38a;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #0e1217;
+  --surface: #161b22;
+  --foreground: #e6e9ee;
+  --muted: #9aa5b4;
+  --border: #2a313c;
+  --primary: #3fb59a;
+  --primary-foreground: #06201a;
+  --danger: #f2766b;
+  --warning: #f0a35c;
+  --success: #4cc38a;
 }
 
 @theme inline {
@@ -34,7 +65,7 @@ body {
   font-family: var(--font-sans);
 }
 
-/* Numbers such as phone and national IDs read left-to-right inside RTL text. */
+/* Numbers such as phone and national IDs read left-to-right inside right-to-left text. */
 .ltr-nums {
   direction: ltr;
   unicode-bidi: isolate;
@@ -46,8 +77,13 @@ body {
     size: A4 landscape;
     margin: 12mm;
   }
-  body {
-    background: #fff;
-    color: #000;
+  :root {
+    color-scheme: light;
+    --background: #fff;
+    --surface: #fff;
+    --foreground: #000;
+    --muted: #444;
+    --border: #bbb;
+    --primary: #0f5c4c;
   }
 }

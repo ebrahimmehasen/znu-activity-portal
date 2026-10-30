@@ -1,4 +1,5 @@
 import type { ComponentProps, ReactNode } from "react";
+import { Tr } from "./tr";
 
 const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
 
@@ -6,7 +7,7 @@ type Variant = "primary" | "secondary" | "danger" | "ghost";
 const variants: Record<Variant, string> = {
   primary: "bg-primary text-primary-foreground hover:opacity-90",
   secondary: "border border-border bg-surface text-foreground hover:bg-background",
-  danger: "bg-danger text-white hover:opacity-90",
+  danger: "bg-danger text-surface hover:opacity-90",
   ghost: "text-muted hover:bg-background hover:text-foreground",
 };
 
@@ -44,7 +45,11 @@ export function Field({ label, error, children }: { label: string; error?: strin
     <label className="block space-y-1.5">
       <span className="text-sm font-medium">{label}</span>
       {children}
-      {error && <span className="block text-sm text-danger">{error}</span>}
+      {error && (
+        <span className="block text-sm text-danger">
+          <Tr text={error} />
+        </span>
+      )}
     </label>
   );
 }
@@ -62,7 +67,7 @@ export function Alert({ tone = "danger", children }: { tone?: "danger" | "succes
         tone === "danger" ? "border-danger/30 bg-danger/5 text-danger" : "border-success/30 bg-success/5 text-success",
       )}
     >
-      {children}
+      {typeof children === "string" ? <Tr text={children} /> : children}
     </div>
   );
 }

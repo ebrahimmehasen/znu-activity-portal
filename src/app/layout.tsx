@@ -1,28 +1,36 @@
 import type { Metadata, Viewport } from "next";
 import { ServiceWorkerRegister } from "@/components/sw-register";
+import { dirOf } from "@/i18n/config";
+import { I18nProvider } from "@/i18n/client";
+import { getLocale, getT, getTheme } from "@/i18n/server";
 import "./globals.css";
 
-export const metadata: Metadata = {
-  title: {
-    default: "بوابة الأنشطة — جامعة الزقازيق الأهلية",
-    template: "%s | بوابة الأنشطة",
-  },
-  description: "بوابة إدارة أنشطة جامعة الزقازيق الأهلية",
-  appleWebApp: { capable: true, title: "بوابة الأنشطة", statusBarStyle: "default" },
-  icons: { apple: "/pwa-icon/192" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getT();
+  const name = t("بوابة الأنشطة");
+  return {
+    title: { default: `${name} — ${t("جامعة الزقازيق الأهلية")}`, template: `%s | ${name}` },
+    description: t("بوابة إدارة أنشطة جامعة الزقازيق الأهلية"),
+    appleWebApp: { capable: true, title: name, statusBarStyle: "default" },
+    icons: { apple: "/pwa-icon/192" },
+  };
+}
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#0f5c4c",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#0f5c4c" },
+    { media: "(prefers-color-scheme: dark)", color: "#0e1217" },
+  ],
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const [locale, theme] = await Promise.all([getLocale(), getTheme()]);
   return (
-    <html lang="ar" dir="rtl" className="h-full antialiased">
+    <html lang={locale} dir={dirOf(locale)} data-theme={theme === "system" ? undefined : theme} className="h-full antialiased">
       <body className="min-h-full flex flex-col">
-        {children}
+        <I18nProvider locale={locale}>{children}</I18nProvider>
         <ServiceWorkerRegister />
       </body>
     </html>

@@ -2,6 +2,7 @@
 
 import { useActionState, type ComponentProps } from "react";
 import type { FormState } from "@/lib/form-state";
+import { Tr } from "./tr";
 import { Button } from "./ui";
 
 /**
@@ -35,7 +36,11 @@ export function ActionButton({
       >
         {children}
       </Button>
-      {state.ok === false && state.message && <span className="max-w-56 text-xs text-danger">{state.message}</span>}
+      {state.ok === false && state.message && (
+        <span className="max-w-56 text-xs text-danger">
+          <Tr text={state.message} />
+        </span>
+      )}
     </form>
   );
 }
