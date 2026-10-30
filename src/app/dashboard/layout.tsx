@@ -8,7 +8,8 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
   const user = await requireUser();
 
   const items: NavItem[] = [{ href: "/dashboard", label: "الرئيسية" }];
-  if (can(user, "manage_activities")) items.push({ href: "/dashboard/trips", label: "الرحلات" });
+  if (can(user, "view_trips")) items.push({ href: "/dashboard/trips", label: "الرحلات" });
+  if (can(user, "manage_supervisors")) items.push({ href: "/dashboard/supervisors", label: "المشرفين" });
   if (can(user, "manage_faculties")) items.push({ href: "/dashboard/faculties", label: "الكليات" });
   if (can(user, "manage_admins")) items.push({ href: "/dashboard/admins", label: "الأدمنز" });
   if (can(user, "manage_settings")) items.push({ href: "/dashboard/settings", label: "الإعدادات" });
