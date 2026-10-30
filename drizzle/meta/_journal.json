@@ -15,6 +15,13 @@
       "when": 1793305394358,
       "tag": "0001_schedule_and_buses",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793340242946,
+      "tag": "0002_students_and_bookings",
+      "breakpoints": true
     }
   ]
 }

@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   bigserial,
   boolean,
+  check,
   date,
   index,
   integer,
@@ -10,6 +11,7 @@ import {
   pgEnum,
   pgTable,
   serial,
+  smallint,
   text,
   time,
   timestamp,
@@ -145,6 +147,57 @@ export const buses = pgTable(
   (t) => [uniqueIndex("buses_activity_name_unique").on(t.activityId, sql`lower(${t.name})`)],
 );
 
+// ─── Students & bookings ─────────────────────────────────────────────────────
+
+export const students = pgTable(
+  "students",
+  {
+    id: serial("id").primaryKey(),
+    name: varchar("name", { length: 200 }).notNull(),
+    phone: varchar("phone", { length: 11 }).notNull(),
+    nationalId: varchar("national_id", { length: 14 }).notNull().unique(),
+    facultyId: integer("faculty_id")
+      .notNull()
+      .references(() => faculties.id),
+    year: smallint("year").notNull(),
+    ...timestamps,
+  },
+  (t) => [index("students_phone_idx").on(t.phone), check("students_year_check", sql`${t.year} between 1 and 5`)],
+);
+
+export const bookingStatus = pgEnum("booking_status", ["pending", "confirmed", "cancelled", "waitlisted"]);
+export const bookingSource = pgEnum("booking_source", ["form", "manual"]);
+
+export const bookings = pgTable(
+  "bookings",
+  {
+    id: serial("id").primaryKey(),
+    activityId: integer("activity_id")
+      .notNull()
+      .references(() => activities.id, { onDelete: "cascade" }),
+    studentId: integer("student_id")
+      .notNull()
+      .references(() => students.id),
+    status: bookingStatus("status").notNull(),
+    source: bookingSource("source").notNull(),
+    waitlistPosition: integer("waitlist_position"),
+    // Form data that differed from the stored student, kept until an admin picks a version.
+    submittedData: jsonb("submitted_data").$type<{ name: string; phone: string; facultyId: number; year: number }>(),
+    busId: integer("bus_id").references(() => buses.id, { onDelete: "set null" }),
+    paidAmount: numeric("paid_amount", { precision: 10, scale: 2 }),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    paymentRecordedBy: integer("payment_recorded_by").references(() => users.id),
+    handledBy: integer("handled_by").references(() => users.id),
+    handledAt: timestamp("handled_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("bookings_activity_student_unique").on(t.activityId, t.studentId),
+    index("bookings_activity_status_idx").on(t.activityId, t.status),
+    index("bookings_student_idx").on(t.studentId),
+  ],
+);
+
 // ─── System-wide settings (key/value) ────────────────────────────────────────
 
 export const settings = pgTable("settings", {
@@ -192,4 +245,7 @@ export type Activity = typeof activities.$inferSelect;
 export type ActivityStatus = (typeof activityStatus.enumValues)[number];
 export type ScheduleItem = typeof activityScheduleItems.$inferSelect;
 export type Bus = typeof buses.$inferSelect;
+export type Student = typeof students.$inferSelect;
+export type Booking = typeof bookings.$inferSelect;
+export type BookingStatus = (typeof bookingStatus.enumValues)[number];
 export type AuditLog = typeof auditLogs.$inferSelect;
