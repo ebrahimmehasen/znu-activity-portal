@@ -1,4 +1,5 @@
-import { Button } from "@/components/ui";
+import { LogoutButton } from "@/components/logout-button";
+import { STAFF_QR_KEY } from "@/components/qr/offline-store";
 import { requireUser } from "@/lib/auth/session";
 import { ROLE_LABELS, can } from "@/lib/authz";
 import { logout } from "./actions";
@@ -14,6 +15,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
   if (can(user, "manage_admins")) items.push({ href: "/dashboard/admins", label: "الأدمنز" });
   if (can(user, "manage_settings")) items.push({ href: "/dashboard/settings", label: "الإعدادات" });
   if (can(user, "view_audit")) items.push({ href: "/dashboard/audit", label: "سجل العمليات" });
+  if (user.role === "supervisor") items.push({ href: "/dashboard/my-qr", label: "QR الحضور" });
   items.push({ href: "/dashboard/account", label: "حسابي" });
 
   return (
@@ -26,11 +28,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
               <span className="hidden text-muted sm:inline">
                 {user.name} · {ROLE_LABELS[user.role]}
               </span>
-              <form action={logout}>
-                <Button variant="ghost" className="px-2 py-1.5">
-                  خروج
-                </Button>
-              </form>
+              <LogoutButton action={logout} storageKey={STAFF_QR_KEY} />
             </div>
           </div>
           <Nav items={items} />
