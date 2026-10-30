@@ -347,6 +347,40 @@ export const supervisorAttendances = pgTable(
   (t) => [primaryKey({ columns: [t.activityId, t.userId] })],
 );
 
+// ─── Announcements (plan §5.8) ────────────────────────────────────────────────
+
+// "supervisors": the trip's staff only; "all": staff plus the students with a confirmed booking.
+export const announcementAudience = pgEnum("announcement_audience", ["supervisors", "all"]);
+
+export const announcements = pgTable(
+  "announcements",
+  {
+    id: serial("id").primaryKey(),
+    activityId: integer("activity_id")
+      .notNull()
+      .references(() => activities.id, { onDelete: "cascade" }),
+    senderId: integer("sender_id").references(() => users.id),
+    audience: announcementAudience("audience").notNull(),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("announcements_activity_idx").on(t.activityId, t.createdAt)],
+);
+
+export const announcementReads = pgTable(
+  "announcement_reads",
+  {
+    announcementId: integer("announcement_id")
+      .notNull()
+      .references(() => announcements.id, { onDelete: "cascade" }),
+    // Staff and students live in separate tables, so the reader is (type, id).
+    readerType: varchar("reader_type", { length: 10 }).notNull(), // user | student
+    readerId: integer("reader_id").notNull(),
+    readAt: timestamp("read_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.announcementId, t.readerType, t.readerId] })],
+);
+
 // ─── System-wide settings (key/value) ────────────────────────────────────────
 
 export const settings = pgTable("settings", {
@@ -402,3 +436,5 @@ export type Checkpoint = typeof checkpoints.$inferSelect;
 export type Attendance = typeof attendances.$inferSelect;
 export type AttendanceStatus = (typeof attendanceStatus.enumValues)[number];
 export type AuditLog = typeof auditLogs.$inferSelect;
+export type Announcement = typeof announcements.$inferSelect;
+export type AnnouncementAudience = (typeof announcementAudience.enumValues)[number];
