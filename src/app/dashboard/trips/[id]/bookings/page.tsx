@@ -214,7 +214,10 @@ export default async function BookingsPage({ params, searchParams }: PageProps<"
                       {sub.name !== s.name && <li>الاسم: {sub.name}</li>}
                       {sub.phone !== s.phone && (
                         <li>
-                          الهاتف: <span className="ltr-nums" dir="ltr">{sub.phone}</span>
+                          الهاتف:{" "}
+                          <a href={`tel:${sub.phone}`} className="ltr-nums text-primary" dir="ltr">
+                            {sub.phone}
+                          </a>
                         </li>
                       )}
                       {sub.facultyId !== s.facultyId && <li>الكلية: {facultyName.get(sub.facultyId)}</li>}
