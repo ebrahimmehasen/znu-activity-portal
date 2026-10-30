@@ -10,6 +10,7 @@ import {
   numeric,
   pgEnum,
   pgTable,
+  primaryKey,
   serial,
   smallint,
   text,
@@ -66,6 +67,31 @@ export const sessions = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("sessions_user_id_idx").on(t.userId)],
+);
+
+// Grantable to supervisors one by one; admins hold all of them by role (src/lib/authz.ts).
+export const supervisorPermission = pgEnum("supervisor_permission", [
+  "add_students",
+  "confirm_bookings",
+  "cancel_bookings",
+  "take_attendance",
+  "direct_attendance",
+  "manage_gatherings",
+  "send_announcements",
+  "view_trip_dashboard",
+]);
+
+export const userPermissions = pgTable(
+  "user_permissions",
+  {
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    permission: supervisorPermission("permission").notNull(),
+    grantedBy: integer("granted_by").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.permission] })],
 );
 
 // ─── Reference data ──────────────────────────────────────────────────────────
@@ -145,6 +171,22 @@ export const buses = pgTable(
     ...timestamps,
   },
   (t) => [uniqueIndex("buses_activity_name_unique").on(t.activityId, sql`lower(${t.name})`)],
+);
+
+export const activitySupervisors = pgTable(
+  "activity_supervisors",
+  {
+    activityId: integer("activity_id")
+      .notNull()
+      .references(() => activities.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    busId: integer("bus_id").references(() => buses.id, { onDelete: "set null" }),
+    assignedBy: integer("assigned_by").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.activityId, t.userId] }), index("activity_supervisors_user_idx").on(t.userId)],
 );
 
 // ─── Students & bookings ─────────────────────────────────────────────────────
@@ -240,6 +282,7 @@ export const rateLimits = pgTable("rate_limits", {
 
 export type User = typeof users.$inferSelect;
 export type UserRole = (typeof userRole.enumValues)[number];
+export type SupervisorPermission = (typeof supervisorPermission.enumValues)[number];
 export type Faculty = typeof faculties.$inferSelect;
 export type Activity = typeof activities.$inferSelect;
 export type ActivityStatus = (typeof activityStatus.enumValues)[number];

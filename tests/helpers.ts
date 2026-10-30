@@ -8,7 +8,7 @@ import type { TripInput } from "@/lib/trips/service";
 
 export async function resetDb() {
   await db.execute(
-    sql`truncate table audit_logs, sessions, rate_limits, bookings, students, buses, activity_schedule_items, activities, settings, faculties, users restart identity cascade`,
+    sql`truncate table audit_logs, sessions, user_permissions, activity_supervisors, rate_limits, bookings, students, buses, activity_schedule_items, activities, settings, faculties, users restart identity cascade`,
   );
 }
 
