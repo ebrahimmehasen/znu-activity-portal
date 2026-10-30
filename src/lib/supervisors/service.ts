@@ -108,7 +108,7 @@ export async function deleteSupervisor(actor: SessionUser, id: number, ctx: Requ
   if (!target) return { ok: false, error: "الحساب مش موجود" };
 
   await db.transaction(async (tx) => {
-    await tx.update(users).set({ deletedAt: new Date(), isActive: false }).where(eq(users.id, id));
+    await tx.update(users).set({ deletedAt: new Date(), isActive: false, qrSecret: null }).where(eq(users.id, id));
     await tx.delete(activitySupervisors).where(eq(activitySupervisors.userId, id));
   });
   await deleteUserSessions(id);

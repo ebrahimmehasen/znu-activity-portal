@@ -382,7 +382,8 @@ export async function cancelBooking(actor: SessionUser, id: number, ctx: Request
     const trip = await lockTrip(tx, eq(activities.id, booking.activityId));
     const updated = await tx
       .update(bookings)
-      .set({ status: "cancelled", waitlistPosition: null, busId: null, handledBy: actor.id, handledAt: new Date() })
+      // Dropping the secret revokes every QR code the student's phone can still show.
+      .set({ status: "cancelled", waitlistPosition: null, busId: null, qrSecret: null, handledBy: actor.id, handledAt: new Date() })
       .where(and(eq(bookings.id, id), ne(bookings.status, "cancelled")))
       .returning({ id: bookings.id });
     if (!updated.length) return fail("الحجز اتغيّر، حدّث الصفحة");
