@@ -62,7 +62,7 @@ export async function BusesCard({ trip }: { trip: Activity }) {
           )}
         </div>
       )}
-      <p className="text-xs text-muted">التوزيع اليدوي من صفحة الحجوزات. توزيع المشرفين هيبقى مع صفحة المشرفين.</p>
+      <p className="text-xs text-muted">التوزيع اليدوي من صفحة الحجوزات، وتسكين المشرفين من كارت المشرفين.</p>
     </Card>
   );
 }

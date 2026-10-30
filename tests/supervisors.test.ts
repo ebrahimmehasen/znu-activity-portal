@@ -274,3 +274,27 @@ describe("supervisors", () => {
     expect((await listBookings(trip.id, { q: studentInput(1, facultyId).phone as string, searchNationalId: false })).rows).toHaveLength(1);
   });
 });
+
+describe("supervisor payments", () => {
+  it("supervisors can't record payment through manual add", async () => {
+    await resetDb();
+    const admin = await createUser("admin");
+    const facultyId = (await createFaculty()).id;
+    const r = await createTrip(admin, tripInput({ feeEnabled: true, feeAmount: "300", paymentRequired: false }), ctx);
+    const req = await createTrip(admin, tripInput({ feeEnabled: true, feeAmount: "300", paymentRequired: true }), ctx);
+    if (!r.ok || !req.ok) throw new Error("trip");
+    const c = await createSupervisor(admin, { name: "مشرف", username: "payer", password: "password123", permissions: ["add_students"] }, ctx);
+    await assignSupervisor(admin, r.id, c.id!, ctx);
+    await assignSupervisor(admin, req.id, c.id!, ctx);
+    const { token } = await createSession(c.id!, ctx);
+    const me = (await getSessionUser(token))!;
+
+    expect((await addManualBooking(me, r.id, { ...studentInput(1, facultyId), paid: true }, ctx)).ok).toBe(true);
+    const { rows } = await listBookings(r.id);
+    expect(rows[0].booking.paidAt).toBeNull();
+    expect(await addManualBooking(me, req.id, { ...studentInput(2, facultyId), paid: true }, ctx)).toEqual({
+      ok: false,
+      error: "الرحلة دي التأكيد فيها بعد الدفع، والإضافة فيها من الأدمن بس",
+    });
+  });
+});

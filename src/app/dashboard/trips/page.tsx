@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Badge, Card, PageHeader } from "@/components/ui";
 import { requireAbility } from "@/lib/auth/session";
+import { can } from "@/lib/authz";
+import { visibleTripsCondition } from "@/lib/supervisors/scope";
 import { formatDate, formatTime } from "@/lib/dates";
 import { STATUS_LIST_LABELS, isStatus } from "@/lib/trips/labels";
 import { countTripsByStatus, listTrips } from "@/lib/trips/service";
@@ -9,19 +11,23 @@ import { countTripsByStatus, listTrips } from "@/lib/trips/service";
 export const metadata: Metadata = { title: "الرحلات" };
 
 export default async function TripsPage({ searchParams }: PageProps<"/dashboard/trips">) {
-  await requireAbility("manage_activities");
+  const actor = await requireAbility("view_trips");
   const sp = await searchParams;
   const status = isStatus(sp.status) ? sp.status : "upcoming";
-  const [trips, counts] = await Promise.all([listTrips(status), countTripsByStatus()]);
+  const visible = await visibleTripsCondition(actor);
+  const [trips, counts] = await Promise.all([listTrips(status, visible), countTripsByStatus(visible)]);
 
   return (
     <>
       <PageHeader
         title="الرحلات"
+        description={visible ? "الرحلات اللي انت مضاف عليها." : undefined}
         actions={
+          can(actor, "manage_activities") && (
           <Link href="/dashboard/trips/new" className="rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90">
             + رحلة جديدة
           </Link>
+          )
         }
       />
 

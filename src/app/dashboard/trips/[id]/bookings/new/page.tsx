@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Card, PageHeader } from "@/components/ui";
 import { requireAbility } from "@/lib/auth/session";
 import { listFaculties } from "@/lib/faculties/service";
+import { canViewTrip } from "@/lib/supervisors/scope";
 import { getTrip } from "@/lib/trips/service";
 import { addManualAction } from "../actions";
 import { ManualBookingForm } from "./manual-form";
@@ -14,7 +15,7 @@ export default async function NewBookingPage({ params }: PageProps<"/dashboard/t
   const actor = await requireAbility("add_students");
   const id = Number((await params).id);
   const trip = Number.isInteger(id) ? await getTrip(id) : null;
-  if (!trip || trip.status === "finished") notFound();
+  if (!trip || trip.status === "finished" || !(await canViewTrip(actor, trip.id))) notFound();
   const faculties = await listFaculties({ activeOnly: true });
 
   return (
@@ -32,7 +33,7 @@ export default async function NewBookingPage({ params }: PageProps<"/dashboard/t
         <ManualBookingForm
           action={addManualAction.bind(null, trip.id)}
           faculties={faculties}
-          feeAmount={trip.feeEnabled ? Number(trip.feeAmount) : null}
+          feeAmount={trip.feeEnabled && actor.role !== "supervisor" ? Number(trip.feeAmount) : null}
           paymentRequired={trip.paymentRequired}
           canOverrideSameDay={actor.role !== "supervisor"}
         />

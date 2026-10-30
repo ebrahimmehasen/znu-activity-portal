@@ -13,7 +13,7 @@ const AVAILABILITY = {
   closed: { label: "الفورم مقفول", tone: "neutral" },
 } as const;
 
-export async function BookingsCard({ trip }: { trip: Activity }) {
+export async function BookingsCard({ trip, canToggle }: { trip: Activity; canToggle: boolean }) {
   const stats = await bookingStats(trip);
   const a = AVAILABILITY[stats.availability];
 
@@ -49,7 +49,7 @@ export async function BookingsCard({ trip }: { trip: Activity }) {
         <Link href={`/dashboard/trips/${trip.id}/bookings`} className="rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90">
           إدارة الحجوزات
         </Link>
-        {trip.status === "upcoming" && (
+        {canToggle && trip.status === "upcoming" && (
           <ActionButton
             action={toggleBookingAction}
             fields={{ activityId: trip.id, open: trip.bookingOpen ? "0" : "1" }}

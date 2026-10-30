@@ -1,15 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { ConfirmButton } from "@/components/confirm-button";
 import { Badge, Card, PageHeader } from "@/components/ui";
-import { requireAbility } from "@/lib/auth/session";
+import { can } from "@/lib/authz";
+import { listBuses } from "@/lib/buses/service";
 import { formatDate, formatTime } from "@/lib/dates";
 import { STATUS_LABELS, STATUS_TONES } from "@/lib/trips/labels";
-import { getSchedule, getTrip } from "@/lib/trips/service";
+import { assignment } from "@/lib/supervisors/scope";
+import { requireVisibleTrip } from "@/lib/trips/access";
+import { getSchedule } from "@/lib/trips/service";
 import { deleteTripAction } from "../actions";
 import { BookingsCard } from "./bookings/bookings-card";
 import { BusesCard } from "./buses/buses-card";
+import { TripSupervisorsCard } from "./supervisors/supervisors-card";
 
 export const metadata: Metadata = { title: "تفاصيل الرحلة" };
 
@@ -23,11 +26,13 @@ function Info({ label, children }: { label: string; children: React.ReactNode })
 }
 
 export default async function TripPage({ params }: PageProps<"/dashboard/trips/[id]">) {
-  await requireAbility("manage_activities");
-  const id = Number((await params).id);
-  const trip = Number.isInteger(id) ? await getTrip(id) : null;
-  if (!trip) notFound();
-  const schedule = await getSchedule(trip.id);
+  const { actor, trip } = await requireVisibleTrip((await params).id);
+  const manager = can(actor, "manage_activities");
+  const [schedule, mine] = await Promise.all([
+    getSchedule(trip.id),
+    actor.role === "supervisor" ? assignment(actor.id, trip.id) : Promise.resolve(null),
+  ]);
+  const myBus = mine?.busId ? (await listBuses(trip.id)).find((b) => b.id === mine.busId)?.name : undefined;
 
   return (
     <>
@@ -35,6 +40,7 @@ export default async function TripPage({ params }: PageProps<"/dashboard/trips/[
         title={trip.title}
         description={formatDate(trip.date)}
         actions={
+          manager && (
           <div className="flex gap-2">
             {trip.status !== "finished" && (
               <Link href={`/dashboard/trips/${trip.id}/edit`} className="rounded-lg border border-border bg-surface px-4 py-2.5 text-sm font-semibold">
@@ -50,6 +56,7 @@ export default async function TripPage({ params }: PageProps<"/dashboard/trips/[
               </form>
             )}
           </div>
+          )
         }
       />
 
@@ -68,7 +75,7 @@ export default async function TripPage({ params }: PageProps<"/dashboard/trips/[
             {trip.description && <p className="mt-4 whitespace-pre-line text-sm leading-7">{trip.description}</p>}
           </Card>
 
-          <BookingsCard trip={trip} />
+          <BookingsCard trip={trip} canToggle={manager} />
 
           <Card>
             <h2 className="mb-3 font-semibold">برنامج الرحلة</h2>
@@ -89,7 +96,8 @@ export default async function TripPage({ params }: PageProps<"/dashboard/trips/[
             )}
           </Card>
 
-          {trip.busesEnabled && <BusesCard trip={trip} />}
+          {manager && trip.busesEnabled && <BusesCard trip={trip} />}
+          {manager && <TripSupervisorsCard trip={trip} />}
         </div>
 
         <Card className="h-fit">
@@ -103,6 +111,7 @@ export default async function TripPage({ params }: PageProps<"/dashboard/trips/[
             {trip.feeEnabled && <Info label="شرط الدفع">{trip.paymentRequired ? "التأكيد بعد الدفع" : "مستقل عن الدفع"}</Info>}
             <Info label="فترة السماح">{trip.lateGraceMinutes ? `${trip.lateGraceMinutes} دقيقة` : "مفيش سماح"}</Info>
             <Info label="الأتوبيسات">{trip.busesEnabled ? "مفعّلة" : "غير مفعّلة"}</Info>
+            {actor.role === "supervisor" && trip.busesEnabled && <Info label="أتوبيسك">{myBus ?? "لسه متسكّنتش"}</Info>}
             {trip.busesEnabled && <Info label="نطاق المشرف">{trip.supervisorScope === "bus" ? "أتوبيسه بس" : "الرحلة كلها"}</Info>}
           </dl>
         </Card>

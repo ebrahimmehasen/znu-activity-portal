@@ -1,17 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { ActionButton } from "@/components/action-button";
 import { Badge, Card, PageHeader } from "@/components/ui";
 import type { BookingStatus } from "@/db/schema";
-import { requireAbility } from "@/lib/auth/session";
 import { can } from "@/lib/authz";
 import { BOOKING_STATUS_LABELS, bookingStats, listBookings, type BookingFilters } from "@/lib/bookings/service";
 import { listBusLoad } from "@/lib/buses/service";
 import { formatDate } from "@/lib/dates";
 import { listFaculties } from "@/lib/faculties/service";
-import { YEAR_LABELS } from "@/lib/students/validation";
-import { getTrip } from "@/lib/trips/service";
+import { YEAR_LABELS, maskNationalId } from "@/lib/students/validation";
+import { bookingScope } from "@/lib/supervisors/scope";
+import { requireVisibleTrip } from "@/lib/trips/access";
 import { bookingAction } from "./actions";
 import { BusSelect } from "./bus-select";
 
@@ -38,10 +37,9 @@ function Stat({ label, value, tone }: { label: string; value: string | number; t
 const one = (v: string | string[] | undefined) => (typeof v === "string" ? v : undefined);
 
 export default async function BookingsPage({ params, searchParams }: PageProps<"/dashboard/trips/[id]/bookings">) {
-  const actor = await requireAbility("manage_activities");
-  const id = Number((await params).id);
-  const trip = Number.isInteger(id) ? await getTrip(id) : null;
-  if (!trip) notFound();
+  const { actor, trip } = await requireVisibleTrip((await params).id);
+  const manager = can(actor, "manage_activities");
+  const fullNid = can(actor, "see_national_id");
 
   const sp = await searchParams;
   const status = STATUSES.find((s) => s === one(sp.status));
@@ -53,7 +51,10 @@ export default async function BookingsPage({ params, searchParams }: PageProps<"
     flagged: one(sp.flagged) === "1",
     busId: busParam === "none" ? "none" : busParam && Number(busParam) > 0 ? Number(busParam) : undefined,
     page: Math.max(1, Number.parseInt(one(sp.page) ?? "1", 10) || 1),
+    scope: await bookingScope(actor, trip),
+    searchNationalId: fullNid,
   };
+  const scoped = filters.scope?.kind === "bus";
 
   const [{ rows, hasNext }, stats, busLoad, faculties] = await Promise.all([
     listBookings(trip.id, filters),
@@ -106,7 +107,15 @@ export default async function BookingsPage({ params, searchParams }: PageProps<"
         {trip.feeEnabled && <Stat label="المحصّل" value={`${stats.collected.toLocaleString("ar-EG")} ج (${stats.paid})`} />}
       </div>
 
-      {stats.flagged > 0 && (
+      {scoped && (
+        <p className="mb-3 text-sm text-muted">
+          {filters.scope?.kind === "bus" && filters.scope.busId === null
+            ? "انت لسه متسكّنتش على أتوبيس، فالكشف بيظهرلك الطلبات المعلّقة بس لو عندك صلاحيتها."
+            : "الكشف ده لطلبة أتوبيسك بس، والعدادات للرحلة كلها."}
+        </p>
+      )}
+
+      {stats.flagged > 0 && manager && (
         <Link href={href({ flagged: "1", status: undefined, page: undefined })} className="mb-4 block rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-warning">
           فيه {stats.flagged} حجز عليه علامة «بيانات مختلفة» ومحتاج تختار البيانات الصح ←
         </Link>
@@ -133,7 +142,7 @@ export default async function BookingsPage({ params, searchParams }: PageProps<"
         <input
           name="q"
           defaultValue={filters.q}
-          placeholder="بحث بالاسم أو الرقم القومي أو الهاتف"
+          placeholder={fullNid ? "بحث بالاسم أو الرقم القومي أو الهاتف" : "بحث بالاسم أو الهاتف"}
           className="min-w-0 flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm sm:max-w-xs"
         />
         {trip.feeEnabled && (
@@ -143,7 +152,7 @@ export default async function BookingsPage({ params, searchParams }: PageProps<"
             <option value="unpaid">لم يدفع</option>
           </select>
         )}
-        {trip.busesEnabled && (
+        {trip.busesEnabled && !scoped && (
           <select name="bus" defaultValue={busParam ?? ""} className={selectCls} aria-label="الأتوبيس">
             <option value="">كل الأتوبيسات</option>
             <option value="none">من غير أتوبيس</option>
@@ -154,10 +163,12 @@ export default async function BookingsPage({ params, searchParams }: PageProps<"
             ))}
           </select>
         )}
-        <label className="flex items-center gap-1.5 text-sm">
-          <input type="checkbox" name="flagged" value="1" defaultChecked={filters.flagged} className="accent-primary" />
-          بيانات مختلفة
-        </label>
+        {manager && (
+          <label className="flex items-center gap-1.5 text-sm">
+            <input type="checkbox" name="flagged" value="1" defaultChecked={filters.flagged} className="accent-primary" />
+            بيانات مختلفة
+          </label>
+        )}
         <button className="rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold">بحث</button>
       </form>
 
@@ -181,7 +192,7 @@ export default async function BookingsPage({ params, searchParams }: PageProps<"
                         {s.phone}
                       </a>
                       <span className="ltr-nums text-muted" dir="ltr">
-                        {s.nationalId}
+                        {fullNid ? s.nationalId : maskNationalId(s.nationalId)}
                       </span>
                     </div>
                   </div>
@@ -196,7 +207,7 @@ export default async function BookingsPage({ params, searchParams }: PageProps<"
                   </div>
                 </div>
 
-                {sub && (
+                {sub && manager && (
                   <div className="rounded-lg border border-warning/30 bg-warning/5 p-3 text-sm">
                     <div className="mb-1 font-semibold text-warning">بيانات مختلفة في الحجز ده:</div>
                     <ul className="space-y-0.5">
@@ -232,7 +243,7 @@ export default async function BookingsPage({ params, searchParams }: PageProps<"
                         ترقية لمعلّق
                       </ActionButton>
                     )}
-                    {trip.feeEnabled && (
+                    {trip.feeEnabled && manager && (
                       <ActionButton
                         action={bookingAction}
                         fields={{ ...fields, op: b.paidAt ? "unpay" : "pay" }}
@@ -243,7 +254,7 @@ export default async function BookingsPage({ params, searchParams }: PageProps<"
                         {b.paidAt ? "إلغاء الدفع" : `سجّل دفع ${Number(trip.feeAmount)} ج`}
                       </ActionButton>
                     )}
-                    {trip.busesEnabled && b.status === "confirmed" && busLoad.length > 0 && (
+                    {manager && trip.busesEnabled && b.status === "confirmed" && busLoad.length > 0 && (
                       <BusSelect activityId={trip.id} bookingId={b.id} busId={b.busId} buses={busLoad} />
                     )}
                     {can(actor, "cancel_bookings") && (

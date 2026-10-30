@@ -5,14 +5,15 @@ import { db } from "@/db";
 import { faculties } from "@/db/schema";
 import { requireUser } from "@/lib/auth/session";
 import { can } from "@/lib/authz";
+import { visibleTripsCondition } from "@/lib/supervisors/scope";
 import { countTripsByStatus } from "@/lib/trips/service";
 
 const STATUS_LABELS = { upcoming: "الرحلات القادمة", ongoing: "الرحلات الحالية", finished: "الرحلات المنتهية" } as const;
 
 export default async function DashboardPage() {
   const user = await requireUser();
-  const [counts, facultyCount] = await Promise.all([countTripsByStatus(), db.$count(faculties, eq(faculties.isActive, true))]);
-  const linkTrips = can(user, "manage_activities");
+  const [counts, facultyCount] = await Promise.all([countTripsByStatus(await visibleTripsCondition(user)), db.$count(faculties, eq(faculties.isActive, true))]);
+  const linkTrips = can(user, "view_trips");
 
   return (
     <>

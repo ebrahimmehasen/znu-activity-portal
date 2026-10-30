@@ -225,6 +225,8 @@ export async function addManualBooking(
   if (!(await activeFacultyExists(data.facultyId))) return { ok: false, errors: { facultyId: "اختار الكلية" } };
   // Only admins may book a student into two trips on the same day.
   const mayOverride = actor.role !== "supervisor" && input.allowSameDay === true;
+  // Recording money stays with admins.
+  const paid = input.paid === true && can(actor, "manage_activities");
 
   // Scope lookups use the shared connection, so they run before the transaction.
   const [preTrip] = await db.select().from(activities).where(and(eq(activities.id, activityId), eq(activities.type, "trip")));
@@ -239,7 +241,8 @@ export async function addManualBooking(
     const trip = await lockTrip(tx, and(eq(activities.id, activityId), eq(activities.type, "trip"))!);
     if (!trip) return fail("الرحلة مش موجودة");
     if (trip.status === "finished") return fail("الرحلة انتهت");
-    if (trip.paymentRequired && !input.paid) {
+    if (trip.paymentRequired && !can(actor, "manage_activities")) return fail("الرحلة دي التأكيد فيها بعد الدفع، والإضافة فيها من الأدمن بس");
+    if (trip.paymentRequired && !paid) {
       return { ok: false as const, errors: { paid: "الرحلة دي التأكيد فيها بعد الدفع، علّم إن الطالب دفع" } };
     }
     if ((await occupiedSeats(tx, trip.id)) >= trip.capacity) return fail("الرحلة مكتملة. زوّد العدد الأقصى الأول");
@@ -275,7 +278,7 @@ export async function addManualBooking(
     if (diff.length) await tx.update(students).set(studentFields(data)).where(eq(students.id, student.id));
 
     const payment =
-      trip.feeEnabled && input.paid ? { paidAmount: trip.feeAmount, paidAt: new Date(), paymentRecordedBy: actor.id } : {};
+      trip.feeEnabled && paid ? { paidAmount: trip.feeAmount, paidAt: new Date(), paymentRecordedBy: actor.id } : {};
     const values = {
       status: "confirmed" as const,
       source: "manual" as const,
@@ -308,7 +311,7 @@ export async function addManualBooking(
         ...(outcome.restored ? { restoredFromCancelled: true } : {}),
         ...(outcome.sameDay ? { sameDayOverride: outcome.sameDay } : {}),
         ...(outcome.diff.length ? { studentFieldsUpdated: outcome.diff } : {}),
-        ...(input.paid ? { paid: true } : {}),
+        ...(paid ? { paid: true } : {}),
       },
     },
     ctx,
