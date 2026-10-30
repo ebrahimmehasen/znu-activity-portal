@@ -1,8 +1,9 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
-import { users, type UserRole } from "@/db/schema";
+import { faculties, users, type UserRole } from "@/db/schema";
 import { cairoToday } from "@/lib/dates";
 import { hashPassword } from "@/lib/password";
+import type { StudentInput } from "@/lib/students/validation";
 import type { TripInput } from "@/lib/trips/service";
 
 export async function resetDb() {
@@ -58,6 +59,27 @@ export function tripInput(overrides: Partial<TripInput> = {}): TripInput {
       { time: "06:30", title: "التجمع والتحرك", notes: "" },
       { time: "", title: "الغداء", notes: "على الشاطئ" },
     ],
+    ...overrides,
+  };
+}
+
+/** A structurally valid Egyptian national ID (born 2004-01-01, Gharbia), unique per `n`. */
+export function nationalId(n: number) {
+  return `3040101${"16"}${String(n).padStart(4, "0")}1`;
+}
+
+export async function createFaculty(name = "الحاسبات وتكنولوجيا المعلومات") {
+  const [f] = await db.insert(faculties).values({ name }).returning();
+  return f;
+}
+
+export function studentInput(n: number, facultyId: number, overrides: Partial<StudentInput> = {}): StudentInput {
+  return {
+    name: "محمد أحمد علي حسن",
+    phone: `0101234${String(n).padStart(4, "0")}`,
+    nationalId: nationalId(n),
+    facultyId,
+    year: 2,
     ...overrides,
   };
 }

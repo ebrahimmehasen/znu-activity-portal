@@ -5,8 +5,17 @@ import type { UserRole } from "@/db/schema";
  * until then supervisors only reach their own account pages.
  */
 const ROLE_ABILITIES = {
-  super_admin: ["manage_admins", "manage_settings", "view_audit", "manage_faculties", "manage_activities"],
-  admin: ["view_audit", "manage_faculties", "manage_activities"],
+  super_admin: [
+    "manage_admins",
+    "manage_settings",
+    "view_audit",
+    "manage_faculties",
+    "manage_activities",
+    "add_students",
+    "confirm_bookings",
+    "cancel_bookings",
+  ],
+  admin: ["view_audit", "manage_faculties", "manage_activities", "add_students", "confirm_bookings", "cancel_bookings"],
   supervisor: [],
 } as const satisfies Record<UserRole, readonly string[]>;
 

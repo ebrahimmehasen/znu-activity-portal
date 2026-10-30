@@ -1,8 +1,8 @@
 import { randomBytes } from "node:crypto";
-import { and, asc, count, desc, eq } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { activities, activityScheduleItems, buses, type ActivityStatus } from "@/db/schema";
+import { activities, activityScheduleItems, bookings, buses, type ActivityStatus } from "@/db/schema";
 import { recordAudit, type RequestCtx } from "@/lib/audit";
 import type { SessionUser } from "@/lib/auth/service";
 import { can } from "@/lib/authz";
@@ -119,6 +119,9 @@ export async function updateTrip(actor: SessionUser, id: number, input: TripInpu
     if (data.date < cairoToday()) return { ok: false, errors: { date: "التاريخ ده عدّى" } };
   }
 
+  const held = await heldSeats(id);
+  if (data.capacity < held) return { ok: false, errors: { capacity: `فيه ${held} حجز معلّق أو مؤكد، العدد مينفعش يقل عن كده` } };
+
   // Postgres returns times as HH:MM:SS while input is HH:MM.
   const norm = (v: unknown) => (v == null ? "" : String(v).replace(/^(\d\d:\d\d):00$/, "$1"));
   const changed = Object.keys(data).filter((k) => norm(current[k as keyof typeof current]) !== norm(data[k as keyof typeof data]));
@@ -142,6 +145,7 @@ export async function deleteTrip(actor: SessionUser, id: number, ctx: RequestCtx
   const current = await getTrip(id);
   if (!current) return { ok: false, errors: { _: "الرحلة مش موجودة" } };
   if (current.status !== "upcoming") return { ok: false, errors: { _: "مينفعش تحذف رحلة بدأت أو انتهت" } };
+  if (await heldSeats(id)) return { ok: false, errors: { _: "الرحلة فيها حجوزات معلّقة أو مؤكدة. الغيها الأول قبل الحذف" } };
 
   await db.delete(activities).where(eq(activities.id, id));
   await recordAudit(
@@ -149,6 +153,14 @@ export async function deleteTrip(actor: SessionUser, id: number, ctx: RequestCtx
     ctx,
   );
   return { ok: true };
+}
+
+async function heldSeats(activityId: number) {
+  const [row] = await db
+    .select({ n: count() })
+    .from(bookings)
+    .where(and(eq(bookings.activityId, activityId), inArray(bookings.status, ["pending", "confirmed"])));
+  return row.n;
 }
 
 export async function getTrip(id: number) {

@@ -1,7 +1,7 @@
-import { and, asc, eq, ne, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { buses } from "@/db/schema";
+import { bookings, buses, students } from "@/db/schema";
 import { recordAudit, type RequestCtx } from "@/lib/audit";
 import type { SessionUser } from "@/lib/auth/service";
 import { can } from "@/lib/authz";
@@ -97,4 +97,103 @@ export async function deleteBus(actor: SessionUser, id: number, ctx: RequestCtx)
     ctx,
   );
   return { ok: true };
+}
+
+// ─── Student distribution ────────────────────────────────────────────────────
+
+async function busLoad(activityId: number) {
+  const rows = await db
+    .select({ id: buses.id, name: buses.name, capacity: buses.capacity, used: count(bookings.id) })
+    .from(buses)
+    .leftJoin(bookings, and(eq(bookings.busId, buses.id), eq(bookings.status, "confirmed")))
+    .where(eq(buses.activityId, activityId))
+    .groupBy(buses.id)
+    .orderBy(asc(buses.id));
+  return rows;
+}
+
+export { busLoad as listBusLoad };
+
+/** Puts one confirmed student on a bus (or takes them off with `busId = null`). */
+export async function assignBus(actor: SessionUser, bookingId: number, busId: number | null, ctx: RequestCtx): Promise<Result> {
+  assertCanManage(actor);
+  const [booking] = await db.select().from(bookings).where(eq(bookings.id, bookingId));
+  if (!booking) return { ok: false, error: "الحجز مش موجود" };
+  const check = await editableTrip(booking.activityId);
+  if ("error" in check) return { ok: false, error: check.error! };
+  if (booking.status !== "confirmed") return { ok: false, error: "التوزيع على الأتوبيسات للحجوزات المؤكدة بس" };
+  if (booking.busId === busId) return { ok: true };
+
+  if (busId !== null) {
+    const bus = (await busLoad(booking.activityId)).find((b) => b.id === busId);
+    if (!bus) return { ok: false, error: "الأتوبيس مش موجود" };
+    if (bus.used >= bus.capacity) return { ok: false, error: `${bus.name} مليان` };
+  }
+
+  await db.update(bookings).set({ busId }).where(eq(bookings.id, bookingId));
+  await recordAudit(
+    {
+      actor: { type: "user", id: actor.id },
+      action: "booking.bus_assigned",
+      subjectType: "booking",
+      subjectId: bookingId,
+      meta: { activityId: booking.activityId, from: booking.busId, to: busId },
+    },
+    ctx,
+  );
+  return { ok: true };
+}
+
+/**
+ * Fills the free seats with confirmed students who have no bus yet, in bus order.
+ * Students are grouped by faculty and year so classmates tend to ride together.
+ */
+export async function autoAssignBuses(
+  actor: SessionUser,
+  activityId: number,
+  ctx: RequestCtx,
+): Promise<{ ok: true; assigned: number; left: number } | { ok: false; error: string }> {
+  assertCanManage(actor);
+  const check = await editableTrip(activityId);
+  if ("error" in check) return { ok: false, error: check.error! };
+
+  const loads = await busLoad(activityId);
+  if (!loads.length) return { ok: false, error: "ضيف أتوبيسات الأول" };
+  const waiting = await db
+    .select({ id: bookings.id })
+    .from(bookings)
+    .innerJoin(students, eq(students.id, bookings.studentId))
+    .where(and(eq(bookings.activityId, activityId), eq(bookings.status, "confirmed"), isNull(bookings.busId)))
+    .orderBy(asc(students.facultyId), asc(students.year), asc(bookings.id));
+
+  let next = 0;
+  const plan: { busId: number; ids: number[] }[] = [];
+  for (const bus of loads) {
+    const free = Math.max(0, bus.capacity - bus.used);
+    const ids = waiting.slice(next, next + free).map((w) => w.id);
+    next += ids.length;
+    if (ids.length) plan.push({ busId: bus.id, ids });
+  }
+
+  if (plan.length) {
+    await db.transaction(async (tx) => {
+      for (const p of plan) {
+        await tx
+          .update(bookings)
+          .set({ busId: p.busId })
+          .where(and(inArray(bookings.id, p.ids), isNull(bookings.busId)));
+      }
+    });
+  }
+  await recordAudit(
+    {
+      actor: { type: "user", id: actor.id },
+      action: "bus.auto_assigned",
+      subjectType: "activity",
+      subjectId: activityId,
+      meta: { assigned: next, left: waiting.length - next },
+    },
+    ctx,
+  );
+  return { ok: true, assigned: next, left: waiting.length - next };
 }
