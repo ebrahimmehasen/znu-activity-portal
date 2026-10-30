@@ -144,6 +144,29 @@ export default async function TripDashboardPage({ params, searchParams }: PagePr
           </Card>
         )}
 
+        {staff.length > 0 && (
+          <Card>
+            <h2 className="mb-2 font-semibold">حضور المشرفين</h2>
+            <ul className="divide-y divide-border">
+              {staff.map((s) => (
+                <li key={s.userId} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                  <span>
+                    <span className="font-medium">{s.name}</span>
+                    {s.busName && <span className="text-muted"> · {s.busName}</span>}
+                  </span>
+                  {s.recordedAt ? (
+                    <Badge tone="success">
+                      حاضر {formatClock(s.recordedAt)} · {s.method === "qr" ? "QR" : "يدوي"}
+                    </Badge>
+                  ) : (
+                    <Badge>لسه</Badge>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
+
         <Card className="p-0">
           <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-4">
             <h2 className="font-semibold">الأسماء ({shown.length})</h2>
