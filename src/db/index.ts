@@ -14,10 +14,13 @@ export type DB = PostgresJsDatabase<typeof schema>;
  */
 export function createDb(url = process.env.DATABASE_URL ?? ""): DB {
   if (url.startsWith("postgres://") || url.startsWith("postgresql://")) {
-    // prepare: false is required by Supabase's transaction pooler.
-    const client = postgres(url, { prepare: false, max: 10 });
+    // prepare: false is required by Supabase's transaction pooler. On Vercel each function
+    // instance keeps one connection so many instances don't exhaust the pooler.
+    const client = postgres(url, { prepare: false, max: process.env.VERCEL ? 1 : 10 });
     return drizzlePostgres(client, { schema });
   }
+  // Vercel's filesystem is read-only and per-instance: a PGlite fallback there would lose data.
+  if (process.env.VERCEL) throw new Error("DATABASE_URL must be a postgres:// URL on Vercel");
   const client = url === "memory://" ? new PGlite() : new PGlite("./.pglite");
   // Both drivers expose the same query-builder API; PgDatabase typing differs only in result HKTs.
   return drizzlePglite(client, { schema }) as unknown as DB;
