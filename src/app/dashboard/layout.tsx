@@ -32,7 +32,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
 
   return (
     <div className="flex min-h-full flex-1 flex-col">
-      <header className="border-b border-border bg-surface print:hidden">
+      <header className="sticky top-0 z-20 border-b border-border bg-surface glass print:hidden">
         <div className="mx-auto max-w-6xl space-y-3 px-4 py-3">
           <div className="flex items-center justify-between gap-3">
             <span className="font-bold text-primary">{t("بوابة الأنشطة")}</span>

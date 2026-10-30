@@ -1,17 +1,27 @@
 @import "tailwindcss";
 @import "@fontsource-variable/cairo";
 
+/*
+ * Glass UI over a photo of the campus: the page shows the photo under a tinted veil,
+ * and every surface (cards, header, inputs, tables) is translucent and blurs what is
+ * behind it. `--surface` and `--background` are translucent on purpose; `--page` is the
+ * solid colour shown before the photo loads and in print.
+ */
 :root {
   color-scheme: light;
-  --background: #f6f7f9;
-  --surface: #ffffff;
-  --foreground: #14181f;
-  --muted: #5f6b7a;
-  --border: #e2e6ec;
+  --page: #eef1f4;
+  --veil: rgb(238 241 245 / 0.62);
+  --background: rgb(255 255 255 / 0.42);
+  --surface: rgb(255 255 255 / 0.66);
+  --foreground: #11161d;
+  --muted: #4b5664;
+  --border: rgb(17 22 29 / 0.12);
+  --glass-edge: rgb(255 255 255 / 0.7);
+  --glass-shadow: 0 8px 32px rgb(15 30 45 / 0.12);
   --primary: #0f5c4c;
   --primary-foreground: #ffffff;
   --danger: #b42318;
-  --warning: #b54708;
+  --warning: #a8430a;
   --success: #067647;
 }
 
@@ -19,11 +29,15 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --background: #0e1217;
-    --surface: #161b22;
-    --foreground: #e6e9ee;
-    --muted: #9aa5b4;
-    --border: #2a313c;
+    --page: #0b0f14;
+    --veil: rgb(7 10 15 / 0.6);
+    --background: rgb(255 255 255 / 0.06);
+    --surface: rgb(20 26 34 / 0.55);
+    --foreground: #eef1f5;
+    --muted: #a9b4c2;
+    --border: rgb(255 255 255 / 0.12);
+    --glass-edge: rgb(255 255 255 / 0.14);
+    --glass-shadow: 0 8px 32px rgb(0 0 0 / 0.35);
     --primary: #3fb59a;
     --primary-foreground: #06201a;
     --danger: #f2766b;
@@ -33,11 +47,15 @@
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --background: #0e1217;
-  --surface: #161b22;
-  --foreground: #e6e9ee;
-  --muted: #9aa5b4;
-  --border: #2a313c;
+  --page: #0b0f14;
+  --veil: rgb(7 10 15 / 0.6);
+  --background: rgb(255 255 255 / 0.06);
+  --surface: rgb(20 26 34 / 0.55);
+  --foreground: #eef1f5;
+  --muted: #a9b4c2;
+  --border: rgb(255 255 255 / 0.12);
+  --glass-edge: rgb(255 255 255 / 0.14);
+  --glass-shadow: 0 8px 32px rgb(0 0 0 / 0.35);
   --primary: #3fb59a;
   --primary-foreground: #06201a;
   --danger: #f2766b;
@@ -60,9 +78,41 @@
 }
 
 body {
-  background: var(--background);
+  /* Its own stacking context, so the photo layer below sits above the root background. */
+  isolation: isolate;
+  background-color: var(--page);
   color: var(--foreground);
   font-family: var(--font-sans);
+}
+
+/* The campus photo, fixed behind everything (a pseudo-element: `background-attachment: fixed` breaks on iOS). */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(var(--veil), var(--veil)),
+    url("/campus-bg.webp") center / cover no-repeat;
+}
+@media (max-width: 640px) {
+  body::before {
+    background:
+      linear-gradient(var(--veil), var(--veil)),
+      url("/campus-bg-sm.webp") center / cover no-repeat;
+  }
+}
+
+/* Every translucent surface frosts what is behind it. */
+.bg-surface {
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  backdrop-filter: blur(18px) saturate(1.4);
+}
+/* Cards and panels get a light edge and a soft shadow so they read as panes of glass. */
+.glass {
+  box-shadow:
+    inset 0 1px 0 var(--glass-edge),
+    var(--glass-shadow);
 }
 
 /* Numbers such as phone and national IDs read left-to-right inside right-to-left text. */
@@ -71,7 +121,7 @@ body {
   unicode-bidi: isolate;
 }
 
-/* Printed reports (Save as PDF): landscape A4, white page, no app chrome. */
+/* Printed reports (Save as PDF): landscape A4, white page, no photo, no app chrome. */
 @media print {
   @page {
     size: A4 landscape;
@@ -79,11 +129,21 @@ body {
   }
   :root {
     color-scheme: light;
+    --page: #fff;
     --background: #fff;
     --surface: #fff;
     --foreground: #000;
     --muted: #444;
     --border: #bbb;
     --primary: #0f5c4c;
+  }
+  body::before {
+    display: none;
+  }
+  .bg-surface {
+    backdrop-filter: none;
+  }
+  .glass {
+    box-shadow: none;
   }
 }

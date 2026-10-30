@@ -13,7 +13,7 @@ export default async function PortalLayout({ children }: { children: React.React
   const [unread, t, theme] = await Promise.all([studentUnreadCount(student.id), getT(), getTheme()]);
   return (
     <div className="flex min-h-full flex-1 flex-col">
-      <header className="border-b border-border bg-surface">
+      <header className="sticky top-0 z-20 border-b border-border bg-surface glass">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">
           <Link href="/portal" className="font-bold text-primary">
             {t("بوابة الطلاب")}

@@ -10,7 +10,7 @@ export default async function OfflinePage() {
   const t = await getT();
   return (
     <main className="flex flex-1 items-center justify-center p-4">
-      <div className="w-full max-w-sm space-y-4 rounded-2xl border border-border bg-surface p-6 text-center shadow-sm">
+      <div className="w-full max-w-sm space-y-4 rounded-2xl border border-border bg-surface p-6 text-center glass">
         <h1 className="text-xl font-bold">{t("لا يوجد اتصال بالإنترنت")}</h1>
         <p className="text-sm text-muted">{t("هذه الصفحة تحتاج إلى اتصال بالإنترنت. يعمل رمز الحضور دون إنترنت إذا فتحته من قبل وأنت متصل.")}</p>
         <div className="flex flex-col gap-2">

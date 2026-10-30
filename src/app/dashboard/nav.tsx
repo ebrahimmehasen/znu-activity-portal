@@ -10,7 +10,7 @@ export type NavItem = { href: string; label: string; unread?: { endpoint: string
 export function Nav({ items }: { items: NavItem[] }) {
   const pathname = usePathname();
   return (
-    <nav className="-mx-4 flex gap-1 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
+    <nav className="-mx-4 flex gap-1 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
       {items.map((item) => {
         const active = item.href === "/dashboard" ? pathname === item.href : pathname.startsWith(item.href);
         return (

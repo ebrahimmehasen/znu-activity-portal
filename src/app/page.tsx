@@ -16,7 +16,7 @@ export default async function Home() {
       <div className="absolute end-4 top-4">
         <Preferences theme={theme} />
       </div>
-      <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-8 text-center shadow-sm">
+      <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-8 text-center glass">
         <h1 className="text-2xl font-bold text-primary">{t("بوابة الأنشطة")}</h1>
         <p className="mt-2 text-muted">{t("جامعة الزقازيق الأهلية")}</p>
         <div className="mt-8 space-y-3">

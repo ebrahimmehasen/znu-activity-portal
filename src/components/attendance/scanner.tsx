@@ -380,7 +380,7 @@ function RosterList({
       <p className="text-xs text-muted">
         {cp ? t("{name}: متبقٍّ {left} من {total}", { name: cp.name, left: remaining, total: shown.length }) : t("لا يوجد تجمع مفتوح")}
       </p>
-      <ul className="divide-y divide-border rounded-2xl border border-border bg-surface">
+      <ul className="glass divide-y divide-border rounded-2xl border border-border bg-surface">
         {shown.map((s) => {
           const done = isRecorded(s.bookingId);
           return (
@@ -411,7 +411,7 @@ function RosterList({
       {pack.supervisors && pack.supervisors.length > 0 && (
         <>
           <h2 className="pt-2 font-semibold">{t("المشرفون")}</h2>
-          <ul className="divide-y divide-border rounded-2xl border border-border bg-surface">
+          <ul className="glass divide-y divide-border rounded-2xl border border-border bg-surface">
             {pack.supervisors.map((s) => (
               <li key={s.userId} className="flex items-center justify-between gap-3 px-4 py-2.5">
                 <span className="font-medium">{s.name}</span>
@@ -436,7 +436,7 @@ function RecordLog({ records }: { records: QueuedRecord[] }) {
   const locale = useLocale();
   if (!records.length) return <p className="text-sm text-muted">{t("لا توجد تسجيلات على هذا الهاتف.")}</p>;
   return (
-    <ul className="divide-y divide-border rounded-2xl border border-border bg-surface">
+    <ul className="glass divide-y divide-border rounded-2xl border border-border bg-surface">
       {[...records].reverse().map((r) => (
         <li key={r.clientUuid} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
           <div>

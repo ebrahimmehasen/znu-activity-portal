@@ -55,7 +55,7 @@ export function Field({ label, error, children }: { label: string; error?: strin
 }
 
 export function Card({ className, ...props }: ComponentProps<"div">) {
-  return <div className={cx("rounded-2xl border border-border bg-surface p-5 shadow-sm", className)} {...props} />;
+  return <div className={cx("glass rounded-2xl border border-border bg-surface p-5", className)} {...props} />;
 }
 
 export function Alert({ tone = "danger", children }: { tone?: "danger" | "success"; children: ReactNode }) {
