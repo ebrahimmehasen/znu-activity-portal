@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { and, eq, gt, isNull, lt, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { sessions, users, type User } from "@/db/schema";
+import { sessions, userPermissions, users, type SupervisorPermission, type User } from "@/db/schema";
 import { recordAudit, type RequestCtx } from "@/lib/audit";
 import { hashPassword, verifyAgainstDummy, verifyPassword } from "@/lib/password";
 import { clearFailures, lockedFor, registerFailure } from "@/lib/rate-limit";
@@ -15,7 +15,15 @@ export const LOGIN_LIMITS = {
   lockSeconds: 15 * 60,
 };
 
-export type SessionUser = Pick<User, "id" | "name" | "username" | "role">;
+export type SessionUser = Pick<User, "id" | "name" | "username" | "role"> & {
+  /** Granted supervisor permissions; loaded per request so a change applies immediately. */
+  permissions?: SupervisorPermission[];
+};
+
+export async function loadPermissions(userId: number) {
+  const rows = await db.select({ p: userPermissions.permission }).from(userPermissions).where(eq(userPermissions.userId, userId));
+  return rows.map((r) => r.p);
+}
 
 type AuthResult =
   | { ok: true; user: SessionUser }
@@ -110,7 +118,8 @@ export async function getSessionUser(token: string): Promise<SessionUser | null>
         isNull(users.deletedAt),
       ),
     );
-  return row ?? null;
+  if (!row) return null;
+  return row.role === "supervisor" ? { ...row, permissions: await loadPermissions(row.id) } : row;
 }
 
 export async function deleteSession(token: string) {

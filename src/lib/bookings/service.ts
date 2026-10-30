@@ -8,6 +8,7 @@ import { cairoToday } from "@/lib/dates";
 import { ForbiddenError } from "@/lib/errors";
 import { lockedFor, registerFailure } from "@/lib/rate-limit";
 import { getSetting } from "@/lib/settings/service";
+import { bookingScope, inScope, scopeCondition, type BookingScope } from "@/lib/supervisors/scope";
 import { studentInputSchema, toLatinDigits, type StudentData, type StudentInput } from "@/lib/students/validation";
 
 type Tx = Parameters<Parameters<DB["transaction"]>[0]>[0];
@@ -225,6 +226,15 @@ export async function addManualBooking(
   // Only admins may book a student into two trips on the same day.
   const mayOverride = actor.role !== "supervisor" && input.allowSameDay === true;
 
+  // Scope lookups use the shared connection, so they run before the transaction.
+  const [preTrip] = await db.select().from(activities).where(and(eq(activities.id, activityId), eq(activities.type, "trip")));
+  if (!preTrip) return fail("الرحلة مش موجودة");
+  const scope = await bookingScope(actor, preTrip);
+  if (scope.kind === "none") return fail("الرحلة مش موجودة");
+  // A bus-scoped supervisor adds students to their own bus, otherwise they'd vanish from their list.
+  const ownBus = scope.kind === "bus" && preTrip.busesEnabled ? scope.busId : null;
+  if (scope.kind === "bus" && ownBus === null) return fail("انت مش متسكّن على أتوبيس في الرحلة دي، كلّم الأدمن");
+
   const outcome = await db.transaction(async (tx) => {
     const trip = await lockTrip(tx, and(eq(activities.id, activityId), eq(activities.type, "trip"))!);
     if (!trip) return fail("الرحلة مش موجودة");
@@ -252,6 +262,15 @@ export async function addManualBooking(
       };
     }
 
+    if (ownBus !== null) {
+      const [bus] = await tx.select().from(buses).where(eq(buses.id, ownBus));
+      const [load] = await tx
+        .select({ n: count() })
+        .from(bookings)
+        .where(and(eq(bookings.busId, ownBus), eq(bookings.status, "confirmed")));
+      if (!bus || load.n >= bus.capacity) return fail(`${bus?.name ?? "الأتوبيس"} مليان`);
+    }
+
     const diff = created ? [] : differingFields(student, data);
     if (diff.length) await tx.update(students).set(studentFields(data)).where(eq(students.id, student.id));
 
@@ -264,6 +283,7 @@ export async function addManualBooking(
       submittedData: null,
       handledBy: actor.id,
       handledAt: new Date(),
+      ...(ownBus !== null ? { busId: ownBus } : {}),
       ...payment,
     };
     const [booking] = existing
@@ -305,16 +325,17 @@ async function findBooking(id: number) {
   return row ?? null;
 }
 
-async function loadEditable(id: number) {
+/** Bookings outside the actor's scope answer "not found", like missing ones. */
+async function loadEditable(actor: SessionUser, id: number) {
   const row = await findBooking(id);
-  if (!row) return { error: "الحجز مش موجود" } as const;
+  if (!row || !inScope(await bookingScope(actor, row.trip), row.booking)) return { error: "الحجز مش موجود" } as const;
   if (row.trip.status === "finished") return { error: "الرحلة انتهت" } as const;
   return row;
 }
 
 export async function confirmBooking(actor: SessionUser, id: number, ctx: RequestCtx): Promise<Result> {
   assertCan(actor, "confirm_bookings");
-  const row = await loadEditable(id);
+  const row = await loadEditable(actor, id);
   if ("error" in row) return fail(row.error!);
   const { booking, trip } = row;
   if (booking.status !== "pending") return fail("الحجز ده مش معلّق");
@@ -349,7 +370,7 @@ async function promoteNext(tx: Tx, activityId: number) {
 
 export async function cancelBooking(actor: SessionUser, id: number, ctx: RequestCtx): Promise<Result<{ promotedId: number | null }>> {
   assertCan(actor, "cancel_bookings");
-  const row = await loadEditable(id);
+  const row = await loadEditable(actor, id);
   if ("error" in row) return fail(row.error!);
   const { booking } = row;
   if (booking.status === "cancelled") return fail("الحجز ملغي بالفعل");
@@ -400,7 +421,7 @@ export async function cancelBooking(actor: SessionUser, id: number, ctx: Request
 /** Manual waitlist promotion; the student moves to pending like any form booking. */
 export async function promoteBooking(actor: SessionUser, id: number, ctx: RequestCtx): Promise<Result> {
   assertCan(actor, "confirm_bookings");
-  const row = await loadEditable(id);
+  const row = await loadEditable(actor, id);
   if ("error" in row) return fail(row.error!);
   if (row.booking.status !== "waitlisted") return fail("الحجز ده مش في قائمة الانتظار");
 
@@ -420,7 +441,7 @@ export async function promoteBooking(actor: SessionUser, id: number, ctx: Reques
 
 export async function setPayment(actor: SessionUser, id: number, paid: boolean, ctx: RequestCtx): Promise<Result> {
   assertCan(actor, "manage_activities");
-  const row = await loadEditable(id);
+  const row = await loadEditable(actor, id);
   if ("error" in row) return fail(row.error!);
   const { booking, trip } = row;
   if (!trip.feeEnabled) return fail("الاشتراك مش مفعّل في الرحلة دي");
@@ -450,8 +471,8 @@ export async function setPayment(actor: SessionUser, id: number, paid: boolean, 
 /** Resolves a "different data" flag: apply the form's data to the student, or keep what's stored. */
 export async function resolveSubmittedData(actor: SessionUser, id: number, choice: "apply" | "keep", ctx: RequestCtx): Promise<Result> {
   assertCan(actor, "manage_activities");
-  const row = await findBooking(id);
-  if (!row) return fail("الحجز مش موجود");
+  const row = await loadEditable(actor, id);
+  if ("error" in row) return fail(row.error!);
   const submitted = row.booking.submittedData;
   if (!submitted) return fail("مفيش بيانات مختلفة على الحجز ده");
 
@@ -505,10 +526,14 @@ export type BookingFilters = {
   flagged?: boolean;
   busId?: number | "none";
   page?: number;
+  /** Supervisors' visibility limit; see src/lib/supervisors/scope.ts. */
+  scope?: BookingScope;
+  /** Digits match the national ID too; off for those who only see it masked. */
+  searchNationalId?: boolean;
 };
 
 export async function listBookings(activityId: number, f: BookingFilters = {}) {
-  const conditions: (SQL | undefined)[] = [eq(bookings.activityId, activityId)];
+  const conditions: (SQL | undefined)[] = [eq(bookings.activityId, activityId), f.scope && scopeCondition(f.scope)];
   if (f.status) conditions.push(eq(bookings.status, f.status));
   if (f.paid === "paid") conditions.push(isNotNull(bookings.paidAt));
   if (f.paid === "unpaid") conditions.push(isNull(bookings.paidAt));
@@ -520,7 +545,7 @@ export async function listBookings(activityId: number, f: BookingFilters = {}) {
   if (q) {
     conditions.push(
       /^\d+$/.test(q)
-        ? or(ilike(students.phone, `%${q}%`), ilike(students.nationalId, `%${q}%`))
+        ? or(ilike(students.phone, `%${q}%`), f.searchNationalId === false ? undefined : ilike(students.nationalId, `%${q}%`))
         : ilike(students.name, `%${q.replace(/\s+/g, "%")}%`),
     );
   }

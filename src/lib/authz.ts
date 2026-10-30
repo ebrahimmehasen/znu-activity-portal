@@ -1,29 +1,46 @@
-import type { UserRole } from "@/db/schema";
+import type { SupervisorPermission, UserRole } from "@/db/schema";
 
-/**
- * Role abilities. Supervisor abilities come from per-user permissions (phase 4);
- * until then supervisors only reach their own account pages.
- */
+/** The checkboxes on the supervisors page (plan §5.4), in display order. */
+export const SUPERVISOR_PERMISSIONS: Record<SupervisorPermission, { label: string; hint?: string }> = {
+  add_students: { label: "تسجيل طلاب يدويًا" },
+  confirm_bookings: { label: "تأكيد الحجوزات" },
+  cancel_bookings: { label: "إلغاء الحجوزات" },
+  take_attendance: { label: "أخذ الحضور (QR + يدوي)" },
+  direct_attendance: { label: "تأكيد الحضور مباشرة", hint: "تسجيلاته تتأكد فورًا من غير ما تستنى الأدمن" },
+  manage_gatherings: { label: "إضافة وفتح وقفل التجمعات" },
+  send_announcements: { label: "إرسال إعلانات" },
+  view_trip_dashboard: { label: "عرض داشبورد الرحلة" },
+};
+
+export const SUPERVISOR_PERMISSION_KEYS = Object.keys(SUPERVISOR_PERMISSIONS) as SupervisorPermission[];
+
+const ADMIN_ABILITIES = [
+  "view_audit",
+  "manage_faculties",
+  "manage_activities",
+  "manage_supervisors",
+  "view_trips",
+  "see_national_id",
+  ...SUPERVISOR_PERMISSION_KEYS,
+] as const;
+
+/** Supervisors get `view_trips` by role; everything else comes from their granted permissions. */
 const ROLE_ABILITIES = {
-  super_admin: [
-    "manage_admins",
-    "manage_settings",
-    "view_audit",
-    "manage_faculties",
-    "manage_activities",
-    "add_students",
-    "confirm_bookings",
-    "cancel_bookings",
-  ],
-  admin: ["view_audit", "manage_faculties", "manage_activities", "add_students", "confirm_bookings", "cancel_bookings"],
-  supervisor: [],
+  super_admin: ["manage_admins", "manage_settings", ...ADMIN_ABILITIES],
+  admin: ADMIN_ABILITIES,
+  supervisor: ["view_trips"],
 } as const satisfies Record<UserRole, readonly string[]>;
 
 export type Ability = (typeof ROLE_ABILITIES)["super_admin"][number];
 
-export function can(user: { role: UserRole }, ability: Ability): boolean {
-  return (ROLE_ABILITIES[user.role] as readonly string[]).includes(ability);
+export type Actor = { role: UserRole; permissions?: readonly SupervisorPermission[] };
+
+export function can(user: Actor, ability: Ability): boolean {
+  if ((ROLE_ABILITIES[user.role] as readonly string[]).includes(ability)) return true;
+  return user.role === "supervisor" && (user.permissions ?? []).includes(ability as SupervisorPermission);
 }
+
+export const isStaffAdmin = (user: Actor) => user.role !== "supervisor";
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   super_admin: "سوبر أدمن",

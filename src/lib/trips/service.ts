@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { and, asc, count, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { activities, activityScheduleItems, bookings, buses, type ActivityStatus } from "@/db/schema";
@@ -179,7 +179,8 @@ export function getSchedule(activityId: number) {
     .orderBy(asc(activityScheduleItems.sortOrder));
 }
 
-export async function listTrips(status: ActivityStatus) {
+/** `visible` narrows the list to what the actor may see (src/lib/supervisors/scope.ts). */
+export async function listTrips(status: ActivityStatus, visible?: SQL) {
   const order = status === "finished" ? [desc(activities.date), desc(activities.id)] : [asc(activities.date), asc(activities.startTime)];
   return db
     .select({
@@ -194,16 +195,16 @@ export async function listTrips(status: ActivityStatus) {
     })
     .from(activities)
     .leftJoin(buses, eq(buses.activityId, activities.id))
-    .where(and(eq(activities.type, "trip"), eq(activities.status, status)))
+    .where(and(eq(activities.type, "trip"), eq(activities.status, status), visible))
     .groupBy(activities.id)
     .orderBy(...order);
 }
 
-export async function countTripsByStatus() {
+export async function countTripsByStatus(visible?: SQL) {
   const rows = await db
     .select({ status: activities.status, n: count() })
     .from(activities)
-    .where(eq(activities.type, "trip"))
+    .where(and(eq(activities.type, "trip"), visible))
     .groupBy(activities.status);
   const result: Record<ActivityStatus, number> = { upcoming: 0, ongoing: 0, finished: 0 };
   for (const r of rows) result[r.status] = r.n;
