@@ -430,8 +430,10 @@ async function recordStudent(sc: SyncContext, rec: Extract<SyncRecord, { kind: "
     const [updated] = await db.update(attendances).set({ ...values, syncedAt: new Date() }).where(eq(attendances.id, standing.id)).returning();
     return outcomeOf(updated, b.name);
   }
-  // Two devices scanned the same student: the earliest scan time wins.
-  if (at < standing.recordedAt) {
+  // Two devices scanned the same student: the earliest scan time wins. Only a scan whose
+  // time is proven (a verified QR code) or a record its author may confirm can move it;
+  // otherwise a backdated manual record would turn "late" into "present" unreviewed.
+  if (at < standing.recordedAt && (verified || direct)) {
     await db.update(attendances).set({ recordedAt: at, status }).where(eq(attendances.id, standing.id));
   }
   return { ...out("duplicate", "الطالب متسجل قبل كده", b.name), status: standing.status };
