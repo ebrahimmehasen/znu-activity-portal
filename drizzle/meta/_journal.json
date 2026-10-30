@@ -36,6 +36,13 @@
       "when": 1793351373773,
       "tag": "0004_student_portal_and_qr",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793357130391,
+      "tag": "0005_attendance",
+      "breakpoints": true
     }
   ]
 }

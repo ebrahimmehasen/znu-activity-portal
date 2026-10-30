@@ -140,6 +140,12 @@ export const activities = pgTable(
     busesEnabled: boolean("buses_enabled").notNull().default(false),
     supervisorScope: supervisorScope("supervisor_scope").notNull().default("bus"),
 
+    // Trip run (plan §5.6): set by "start trip" and "confirm trip count".
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+    rosterLockedAt: timestamp("roster_locked_at", { withTimezone: true }),
+    rosterLockedBy: integer("roster_locked_by").references(() => users.id),
+
     createdBy: integer("created_by").references(() => users.id),
     ...timestamps,
   },
@@ -260,6 +266,87 @@ export const bookings = pgTable(
   ],
 );
 
+// ─── Gatherings & attendance (plan §5.6–§6.1) ────────────────────────────────
+
+export const checkpoints = pgTable(
+  "checkpoints",
+  {
+    id: serial("id").primaryKey(),
+    activityId: integer("activity_id")
+      .notNull()
+      .references(() => activities.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 150 }).notNull(),
+    // Lateness is measured from here plus the trip's grace minutes; null = no lateness.
+    scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+    // 1 = the first gathering, opened by "start trip", which fixes the roster.
+    sortOrder: integer("sort_order").notNull(),
+    // First opening; reopening keeps it so offline scans from the first round still sync.
+    openedAt: timestamp("opened_at", { withTimezone: true }),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    createdBy: integer("created_by").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("checkpoints_activity_order_unique").on(t.activityId, t.sortOrder)],
+);
+
+export const attendanceStatus = pgEnum("attendance_status", ["present", "late", "absent"]);
+export const attendanceMethod = pgEnum("attendance_method", ["qr", "manual"]);
+
+export const attendances = pgTable(
+  "attendances",
+  {
+    id: serial("id").primaryKey(),
+    checkpointId: integer("checkpoint_id")
+      .notNull()
+      .references(() => checkpoints.id, { onDelete: "cascade" }),
+    bookingId: integer("booking_id")
+      .notNull()
+      .references(() => bookings.id, { onDelete: "cascade" }),
+    status: attendanceStatus("status").notNull(),
+    method: attendanceMethod("method").notNull(),
+    // The scan time on the device (lateness uses this), and when it reached the server.
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull(),
+    syncedAt: timestamp("synced_at", { withTimezone: true }).notNull().defaultNow(),
+    recordedBy: integer("recorded_by").references(() => users.id),
+    // Generated on the device; a record uploaded twice is stored once.
+    clientUuid: varchar("client_uuid", { length: 36 }).notNull().unique(),
+    // The QR code was checked on the server against the scan time.
+    verified: boolean("verified").notNull().default(false),
+    // Null until an admin confirms a supervisor's record (or the supervisor may confirm directly).
+    confirmedBy: integer("confirmed_by").references(() => users.id),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    // "invalid" / "revoked": the QR failed the server check; kept so admin and supervisor see it.
+    rejectedReason: varchar("rejected_reason", { length: 20 }),
+    voidedBy: integer("voided_by").references(() => users.id),
+    voidedAt: timestamp("voided_at", { withTimezone: true }),
+  },
+  (t) => [
+    // One standing record per student per gathering; rejected and voided ones don't count.
+    uniqueIndex("attendances_checkpoint_booking_active")
+      .on(t.checkpointId, t.bookingId)
+      .where(sql`${t.rejectedReason} is null and ${t.voidedAt} is null`),
+    index("attendances_booking_idx").on(t.bookingId),
+  ],
+);
+
+export const supervisorAttendances = pgTable(
+  "supervisor_attendances",
+  {
+    activityId: integer("activity_id")
+      .notNull()
+      .references(() => activities.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    status: attendanceStatus("status").notNull().default("present"),
+    method: attendanceMethod("method").notNull(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull(),
+    recordedBy: integer("recorded_by").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.activityId, t.userId] })],
+);
+
 // ─── System-wide settings (key/value) ────────────────────────────────────────
 
 export const settings = pgTable("settings", {
@@ -311,4 +398,7 @@ export type Bus = typeof buses.$inferSelect;
 export type Student = typeof students.$inferSelect;
 export type Booking = typeof bookings.$inferSelect;
 export type BookingStatus = (typeof bookingStatus.enumValues)[number];
+export type Checkpoint = typeof checkpoints.$inferSelect;
+export type Attendance = typeof attendances.$inferSelect;
+export type AttendanceStatus = (typeof attendanceStatus.enumValues)[number];
 export type AuditLog = typeof auditLogs.$inferSelect;
