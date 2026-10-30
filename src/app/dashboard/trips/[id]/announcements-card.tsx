@@ -8,8 +8,10 @@ import type { SessionUser } from "@/lib/auth/service";
 import { can } from "@/lib/authz";
 import { deleteAnnouncementAction, markStaffReadAction } from "../../announcements/actions";
 import { SendAnnouncementForm } from "../../announcements/send-form";
+import { getT } from "@/i18n/server";
 
 export async function AnnouncementsCard({ actor, trip }: { actor: SessionUser; trip: Activity }) {
+  const t = await getT();
   const items = await listStaffAnnouncements(actor, trip.id);
   const sender = can(actor, "send_announcements");
   const admin = can(actor, "manage_activities");
@@ -17,7 +19,7 @@ export async function AnnouncementsCard({ actor, trip }: { actor: SessionUser; t
 
   return (
     <Card>
-      <h2 className="mb-3 font-semibold">الإعلانات</h2>
+      <h2 className="mb-3 font-semibold">{t("الإعلانات")}</h2>
       {sender && (
         <div className="mb-4">
           <SendAnnouncementForm activityId={trip.id} />
@@ -25,7 +27,7 @@ export async function AnnouncementsCard({ actor, trip }: { actor: SessionUser; t
       )}
       <MarkRead ids={items.filter((a) => !a.read).map((a) => a.id)} action={markStaffReadAction} />
       {items.length === 0 ? (
-        <p className="text-sm text-muted">مفيش إعلانات على الرحلة دي لسه.</p>
+        <p className="text-sm text-muted">{t("لا توجد إعلانات على هذه الرحلة بعد.")}</p>
       ) : (
         <AnnouncementList
           items={items}
@@ -36,9 +38,9 @@ export async function AnnouncementsCard({ actor, trip }: { actor: SessionUser; t
                 fields={{ id: a.id, activityId: trip.id }}
                 variant="ghost"
                 className="px-3 py-1.5 text-xs"
-                confirm="حذف الإعلان؟"
+                confirm={t("حذف الإعلان؟")}
               >
-                حذف
+                {t("حذف")}
               </ActionButton>
             )
           }

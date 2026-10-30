@@ -2,14 +2,14 @@ import type { SupervisorPermission, UserRole } from "@/db/schema";
 
 /** The checkboxes on the supervisors page (plan §5.4), in display order. */
 export const SUPERVISOR_PERMISSIONS: Record<SupervisorPermission, { label: string; hint?: string }> = {
-  add_students: { label: "تسجيل طلاب يدويًا" },
+  add_students: { label: "تسجيل الطلاب يدويًا" },
   confirm_bookings: { label: "تأكيد الحجوزات" },
   cancel_bookings: { label: "إلغاء الحجوزات" },
-  take_attendance: { label: "أخذ الحضور (QR + يدوي)" },
-  direct_attendance: { label: "تأكيد الحضور مباشرة", hint: "تسجيلاته تتأكد فورًا من غير ما تستنى الأدمن" },
-  manage_gatherings: { label: "إضافة وفتح وقفل التجمعات" },
-  send_announcements: { label: "إرسال إعلانات" },
-  view_trip_dashboard: { label: "عرض داشبورد الرحلة" },
+  take_attendance: { label: "تسجيل الحضور (رمز QR أو يدويًا)" },
+  direct_attendance: { label: "تأكيد الحضور مباشرةً", hint: "تُعتمد تسجيلاته فورًا دون انتظار المسؤول" },
+  manage_gatherings: { label: "إضافة التجمعات وفتحها وإغلاقها" },
+  send_announcements: { label: "إرسال الإعلانات" },
+  view_trip_dashboard: { label: "عرض لوحة متابعة الرحلة" },
 };
 
 export const SUPERVISOR_PERMISSION_KEYS = Object.keys(SUPERVISOR_PERMISSIONS) as SupervisorPermission[];
@@ -43,7 +43,7 @@ export function can(user: Actor, ability: Ability): boolean {
 export const isStaffAdmin = (user: Actor) => user.role !== "supervisor";
 
 export const ROLE_LABELS: Record<UserRole, string> = {
-  super_admin: "سوبر أدمن",
-  admin: "أدمن",
+  super_admin: "المسؤول الرئيسي",
+  admin: "مسؤول",
   supervisor: "مشرف",
 };

@@ -9,8 +9,8 @@ import { ForbiddenError } from "@/lib/errors";
 import { getTrip } from "@/lib/trips/service";
 
 export const busInputSchema = z.object({
-  name: z.string().trim().min(1, "اكتب اسم الأتوبيس").max(100),
-  capacity: z.coerce.number().int("العدد لازم يكون رقم صحيح").min(1, "السعة من 1 لـ 200").max(200, "السعة من 1 لـ 200"),
+  name: z.string().trim().min(1, "أدخل اسم الحافلة").max(100),
+  capacity: z.coerce.number().int("يجب أن يكون العدد رقمًا صحيحًا").min(1, "السعة من 1 إلى 200").max(200, "السعة من 1 إلى 200"),
 });
 
 type Result = { ok: true } | { ok: false; error: string };
@@ -21,9 +21,9 @@ function assertCanManage(actor: SessionUser) {
 
 async function editableTrip(activityId: number) {
   const trip = await getTrip(activityId);
-  if (!trip) return { error: "الرحلة مش موجودة" } as const;
-  if (!trip.busesEnabled) return { error: "الأتوبيسات مش مفعّلة في الرحلة دي" } as const;
-  if (trip.status === "finished") return { error: "الرحلة انتهت" } as const;
+  if (!trip) return { error: "الرحلة غير موجودة" } as const;
+  if (!trip.busesEnabled) return { error: "الحافلات غير مفعَّلة في هذه الرحلة" } as const;
+  if (trip.status === "finished") return { error: "انتهت الرحلة" } as const;
   return { trip } as const;
 }
 
@@ -45,7 +45,7 @@ export async function createBus(actor: SessionUser, activityId: number, input: z
   if ("error" in check) return { ok: false, error: check.error! };
   const parsed = busInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
-  if (await nameTaken(activityId, parsed.data.name)) return { ok: false, error: "فيه أتوبيس بنفس الاسم" };
+  if (await nameTaken(activityId, parsed.data.name)) return { ok: false, error: "توجد حافلة بالاسم نفسه" };
 
   const [bus] = await db.insert(buses).values({ activityId, ...parsed.data }).returning({ id: buses.id });
   await recordAudit(
@@ -63,12 +63,12 @@ async function findBus(id: number) {
 export async function updateBus(actor: SessionUser, id: number, input: z.input<typeof busInputSchema>, ctx: RequestCtx): Promise<Result> {
   assertCanManage(actor);
   const bus = await findBus(id);
-  if (!bus) return { ok: false, error: "الأتوبيس مش موجود" };
+  if (!bus) return { ok: false, error: "الحافلة غير موجودة" };
   const check = await editableTrip(bus.activityId);
   if ("error" in check) return { ok: false, error: check.error! };
   const parsed = busInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
-  if (await nameTaken(bus.activityId, parsed.data.name, id)) return { ok: false, error: "فيه أتوبيس بنفس الاسم" };
+  if (await nameTaken(bus.activityId, parsed.data.name, id)) return { ok: false, error: "توجد حافلة بالاسم نفسه" };
 
   await db.update(buses).set(parsed.data).where(eq(buses.id, id));
   await recordAudit(
@@ -87,7 +87,7 @@ export async function updateBus(actor: SessionUser, id: number, input: z.input<t
 export async function deleteBus(actor: SessionUser, id: number, ctx: RequestCtx): Promise<Result> {
   assertCanManage(actor);
   const bus = await findBus(id);
-  if (!bus) return { ok: false, error: "الأتوبيس مش موجود" };
+  if (!bus) return { ok: false, error: "الحافلة غير موجودة" };
   const check = await editableTrip(bus.activityId);
   if ("error" in check) return { ok: false, error: check.error! };
 
@@ -118,16 +118,16 @@ export { busLoad as listBusLoad };
 export async function assignBus(actor: SessionUser, bookingId: number, busId: number | null, ctx: RequestCtx): Promise<Result> {
   assertCanManage(actor);
   const [booking] = await db.select().from(bookings).where(eq(bookings.id, bookingId));
-  if (!booking) return { ok: false, error: "الحجز مش موجود" };
+  if (!booking) return { ok: false, error: "الحجز غير موجود" };
   const check = await editableTrip(booking.activityId);
   if ("error" in check) return { ok: false, error: check.error! };
-  if (booking.status !== "confirmed") return { ok: false, error: "التوزيع على الأتوبيسات للحجوزات المؤكدة بس" };
+  if (booking.status !== "confirmed") return { ok: false, error: "التوزيع على الحافلات للحجوزات المؤكدة فقط" };
   if (booking.busId === busId) return { ok: true };
 
   if (busId !== null) {
     const bus = (await busLoad(booking.activityId)).find((b) => b.id === busId);
-    if (!bus) return { ok: false, error: "الأتوبيس مش موجود" };
-    if (bus.used >= bus.capacity) return { ok: false, error: `${bus.name} مليان` };
+    if (!bus) return { ok: false, error: "الحافلة غير موجودة" };
+    if (bus.used >= bus.capacity) return { ok: false, error: `${bus.name} ممتلئة` };
   }
 
   await db.update(bookings).set({ busId }).where(eq(bookings.id, bookingId));
@@ -158,7 +158,7 @@ export async function autoAssignBuses(
   if ("error" in check) return { ok: false, error: check.error! };
 
   const loads = await busLoad(activityId);
-  if (!loads.length) return { ok: false, error: "ضيف أتوبيسات الأول" };
+  if (!loads.length) return { ok: false, error: "أضف الحافلات أولًا" };
   const waiting = await db
     .select({ id: bookings.id })
     .from(bookings)

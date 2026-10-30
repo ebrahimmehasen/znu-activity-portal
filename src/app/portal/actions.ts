@@ -16,14 +16,14 @@ const schema = z.object({
 
 export async function studentLogin(_prev: FormState, fd: FormData): Promise<FormState> {
   const parsed = schema.safeParse({ phone: fd.get("phone"), nationalId: fd.get("nationalId") });
-  if (!parsed.success) return { ok: false, message: "اكتب رقم الهاتف والرقم القومي" };
+  if (!parsed.success) return { ok: false, message: "أدخل رقم الهاتف والرقم القومي" };
 
   const ctx = await getRequestCtx();
   const r = await authenticateStudent(parsed.data.phone, parsed.data.nationalId, ctx);
   if (!r.ok) {
-    if (r.reason === "locked") return { ok: false, message: `محاولات كتير غلط. حاول تاني بعد ${Math.ceil(r.retryAfterSeconds / 60)} دقيقة.` };
-    if (r.reason === "not_confirmed") return { ok: false, message: "لسه مفيش حجز متأكد ليك. هتقدر تدخل أول ما حجزك يتأكد." };
-    return { ok: false, message: "البيانات دي مش مطابقة لأي حجز. اكتب نفس الهاتف والرقم القومي اللي حجزت بيهم." };
+    if (r.reason === "locked") return { ok: false, message: `محاولات خاطئة كثيرة. حاول مجددًا بعد ${Math.ceil(r.retryAfterSeconds / 60)} دقيقة.` };
+    if (r.reason === "not_confirmed") return { ok: false, message: "لا يوجد لك حجز مؤكد بعد. يمكنك الدخول بمجرد تأكيد حجزك." };
+    return { ok: false, message: "هذه البيانات لا تطابق أي حجز. أدخل الهاتف والرقم القومي اللذين حجزت بهما." };
   }
 
   await setStudentCookie(await createStudentSession(r.student.id, ctx));

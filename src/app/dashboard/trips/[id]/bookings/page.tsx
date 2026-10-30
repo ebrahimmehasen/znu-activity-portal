@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getT } from "@/i18n/server";
 import Link from "next/link";
 import { ActionButton } from "@/components/action-button";
 import { Badge, Card, PageHeader } from "@/components/ui";
@@ -7,6 +8,8 @@ import { can } from "@/lib/authz";
 import { BOOKING_STATUS_LABELS, bookingStats, listBookings, type BookingFilters } from "@/lib/bookings/service";
 import { listBusLoad } from "@/lib/buses/service";
 import { formatDate } from "@/lib/dates";
+import { getI18n } from "@/i18n/server";
+import { intlLocale } from "@/i18n/config";
 import { listFaculties } from "@/lib/faculties/service";
 import { YEAR_LABELS, maskNationalId } from "@/lib/students/validation";
 import { bookingScope } from "@/lib/supervisors/scope";
@@ -14,7 +17,9 @@ import { requireVisibleTrip } from "@/lib/trips/access";
 import { bookingAction } from "./actions";
 import { BusSelect } from "./bus-select";
 
-export const metadata: Metadata = { title: "الحجوزات" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getT())("الحجوزات") };
+}
 
 const STATUS_TONES: Record<BookingStatus, "neutral" | "success" | "danger" | "warning"> = {
   pending: "warning",
@@ -63,6 +68,7 @@ export default async function BookingsPage({ params, searchParams }: PageProps<"
     listFaculties(),
   ]);
   const facultyName = new Map(faculties.map((f) => [f.id, f.name]));
+  const { locale, t } = await getI18n();
   const editable = trip.status !== "finished";
   const base = `/dashboard/trips/${trip.id}/bookings`;
   const href = (patch: Record<string, string | undefined>) => {
@@ -82,16 +88,16 @@ export default async function BookingsPage({ params, searchParams }: PageProps<"
   return (
     <>
       <PageHeader
-        title={`حجوزات ${trip.title}`}
-        description={formatDate(trip.date)}
+        title={t("حجوزات {trip}", { trip: trip.title })}
+        description={formatDate(trip.date, locale)}
         actions={
           <div className="flex gap-2">
             <Link href={`/dashboard/trips/${trip.id}`} className="rounded-lg border border-border bg-surface px-4 py-2.5 text-sm font-semibold">
-              الرحلة
+              {t("الرحلة")}
             </Link>
             {editable && can(actor, "add_students") && (
               <Link href={`${base}/new`} className="rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90">
-                + إضافة طالب
+                + {t("إضافة طالب")}
               </Link>
             )}
           </div>
@@ -99,25 +105,25 @@ export default async function BookingsPage({ params, searchParams }: PageProps<"
       />
 
       <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-        <Stat label="مؤكد" value={stats.confirmed} tone="text-success" />
-        <Stat label="معلّق" value={stats.pending} tone="text-warning" />
-        <Stat label="ملغي" value={stats.cancelled} tone="text-danger" />
-        <Stat label="المتبقي من السعة" value={`${stats.remaining} من ${trip.capacity}`} />
-        {trip.whenFull === "waitlist" && <Stat label="قائمة الانتظار" value={stats.waitlisted} />}
-        {trip.feeEnabled && <Stat label="المحصّل" value={`${stats.collected.toLocaleString("ar-EG")} ج (${stats.paid})`} />}
+        <Stat label={t("مؤكد")} value={stats.confirmed} tone="text-success" />
+        <Stat label={t("معلّق")} value={stats.pending} tone="text-warning" />
+        <Stat label={t("ملغى")} value={stats.cancelled} tone="text-danger" />
+        <Stat label={t("المتبقي من السعة")} value={t("{n} من {total}", { n: stats.remaining, total: trip.capacity })} />
+        {trip.whenFull === "waitlist" && <Stat label={t("قائمة الانتظار")} value={stats.waitlisted} />}
+        {trip.feeEnabled && <Stat label={t("المحصَّل")} value={`${stats.collected.toLocaleString(intlLocale(locale))} ${t("ج")} (${stats.paid})`} />}
       </div>
 
       {scoped && (
         <p className="mb-3 text-sm text-muted">
           {filters.scope?.kind === "bus" && filters.scope.busId === null
-            ? "انت لسه متسكّنتش على أتوبيس، فالكشف بيظهرلك الطلبات المعلّقة بس لو عندك صلاحيتها."
-            : "الكشف ده لطلبة أتوبيسك بس، والعدادات للرحلة كلها."}
+            ? t("لم تُعيَّن على حافلة بعد، لذا يعرض لك الكشف الطلبات المعلّقة فقط إذا كانت لديك صلاحيتها.")
+            : t("هذا الكشف لطلاب حافلتك فقط، والأعداد للرحلة كاملة.")}
         </p>
       )}
 
       {stats.flagged > 0 && manager && (
         <Link href={href({ flagged: "1", status: undefined, page: undefined })} className="mb-4 block rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-warning">
-          فيه {stats.flagged} حجز عليه علامة «بيانات مختلفة» ومحتاج تختار البيانات الصح ←
+          {t("يوجد {n} حجز عليه علامة «بيانات مختلفة» ويحتاج إلى اختيار البيانات الصحيحة", { n: stats.flagged })}
         </Link>
       )}
 
@@ -132,7 +138,7 @@ export default async function BookingsPage({ params, searchParams }: PageProps<"
               s === status ? "bg-primary text-primary-foreground" : "border border-border bg-surface text-muted"
             }`}
           >
-            {s ? `${BOOKING_STATUS_LABELS[s]} (${stats[s]})` : "الكل"}
+            {s ? `${t(BOOKING_STATUS_LABELS[s])} (${stats[s]})` : t("الكل")}
           </Link>
         ))}
       </div>
@@ -142,20 +148,20 @@ export default async function BookingsPage({ params, searchParams }: PageProps<"
         <input
           name="q"
           defaultValue={filters.q}
-          placeholder={fullNid ? "بحث بالاسم أو الرقم القومي أو الهاتف" : "بحث بالاسم أو الهاتف"}
+          placeholder={fullNid ? t("ابحث بالاسم أو الرقم القومي أو الهاتف") : t("ابحث بالاسم أو الهاتف")}
           className="min-w-0 flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm sm:max-w-xs"
         />
         {trip.feeEnabled && (
-          <select name="paid" defaultValue={filters.paid ?? ""} className={selectCls} aria-label="الدفع">
-            <option value="">الدفع: الكل</option>
-            <option value="paid">دفع</option>
-            <option value="unpaid">لم يدفع</option>
+          <select name="paid" defaultValue={filters.paid ?? ""} className={selectCls} aria-label={t("الدفع")}>
+            <option value="">{t("الدفع: الكل")}</option>
+            <option value="paid">{t("دفع")}</option>
+            <option value="unpaid">{t("لم يدفع")}</option>
           </select>
         )}
         {trip.busesEnabled && !scoped && (
-          <select name="bus" defaultValue={busParam ?? ""} className={selectCls} aria-label="الأتوبيس">
-            <option value="">كل الأتوبيسات</option>
-            <option value="none">من غير أتوبيس</option>
+          <select name="bus" defaultValue={busParam ?? ""} className={selectCls} aria-label={t("الحافلة")}>
+            <option value="">{t("كل الحافلات")}</option>
+            <option value="none">{t("بدون حافلة")}</option>
             {busLoad.map((b) => (
               <option key={b.id} value={b.id}>
                 {b.name}
@@ -166,14 +172,14 @@ export default async function BookingsPage({ params, searchParams }: PageProps<"
         {manager && (
           <label className="flex items-center gap-1.5 text-sm">
             <input type="checkbox" name="flagged" value="1" defaultChecked={filters.flagged} className="accent-primary" />
-            بيانات مختلفة
+            {t("بيانات مختلفة")}
           </label>
         )}
-        <button className="rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold">بحث</button>
+        <button className="rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold">{t("بحث")}</button>
       </form>
 
       {rows.length === 0 ? (
-        <Card className="py-10 text-center text-muted">مفيش حجوزات.</Card>
+        <Card className="py-10 text-center text-muted">{t("لا توجد حجوزات.")}</Card>
       ) : (
         <Card className="divide-y divide-border p-0">
           {rows.map(({ booking: b, student: s, facultyName: faculty, busName }) => {
@@ -185,7 +191,7 @@ export default async function BookingsPage({ params, searchParams }: PageProps<"
                   <div className="min-w-0">
                     <div className="font-semibold">{s.name}</div>
                     <div className="mt-0.5 text-sm text-muted">
-                      {faculty} · {YEAR_LABELS[s.year]}
+                      {faculty} · {t(YEAR_LABELS[s.year])}
                     </div>
                     <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm">
                       <a href={`tel:${s.phone}`} className="ltr-nums text-primary" dir="ltr">
@@ -198,37 +204,49 @@ export default async function BookingsPage({ params, searchParams }: PageProps<"
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     <Badge tone={STATUS_TONES[b.status]}>
-                      {BOOKING_STATUS_LABELS[b.status]}
+                      {t(BOOKING_STATUS_LABELS[b.status])}
                       {b.status === "waitlisted" && b.waitlistPosition ? ` #${b.waitlistPosition}` : ""}
                     </Badge>
-                    {b.source === "manual" && <Badge>يدوي</Badge>}
-                    {trip.feeEnabled && b.status !== "cancelled" && <Badge tone={b.paidAt ? "success" : "neutral"}>{b.paidAt ? "دفع" : "لم يدفع"}</Badge>}
+                    {b.source === "manual" && <Badge>{t("يدوي")}</Badge>}
+                    {trip.feeEnabled && b.status !== "cancelled" && <Badge tone={b.paidAt ? "success" : "neutral"}>{b.paidAt ? t("دفع") : t("لم يدفع")}</Badge>}
                     {busName && <Badge>{busName}</Badge>}
                   </div>
                 </div>
 
                 {sub && manager && (
                   <div className="rounded-lg border border-warning/30 bg-warning/5 p-3 text-sm">
-                    <div className="mb-1 font-semibold text-warning">بيانات مختلفة في الحجز ده:</div>
+                    <div className="mb-1 font-semibold text-warning">{t("بيانات مختلفة في هذا الحجز:")}</div>
                     <ul className="space-y-0.5">
-                      {sub.name !== s.name && <li>الاسم: {sub.name}</li>}
+                      {sub.name !== s.name && (
+                        <li>
+                          {t("الاسم")}: {sub.name}
+                        </li>
+                      )}
                       {sub.phone !== s.phone && (
                         <li>
-                          الهاتف:{" "}
+                          {t("الهاتف")}:{" "}
                           <a href={`tel:${sub.phone}`} className="ltr-nums text-primary" dir="ltr">
                             {sub.phone}
                           </a>
                         </li>
                       )}
-                      {sub.facultyId !== s.facultyId && <li>الكلية: {facultyName.get(sub.facultyId)}</li>}
-                      {sub.year !== s.year && <li>الفرقة: {YEAR_LABELS[sub.year]}</li>}
+                      {sub.facultyId !== s.facultyId && (
+                        <li>
+                          {t("الكلية")}: {facultyName.get(sub.facultyId)}
+                        </li>
+                      )}
+                      {sub.year !== s.year && (
+                        <li>
+                          {t("الفرقة")}: {t(YEAR_LABELS[sub.year])}
+                        </li>
+                      )}
                     </ul>
                     <div className="mt-2 flex flex-wrap gap-2">
                       <ActionButton action={bookingAction} fields={{ ...fields, op: "apply" }} variant="secondary" className="px-3 py-1.5">
-                        استخدم البيانات الجديدة
+                        {t("استخدام البيانات الجديدة")}
                       </ActionButton>
                       <ActionButton action={bookingAction} fields={{ ...fields, op: "keep" }} variant="ghost" className="px-3 py-1.5">
-                        احتفظ بالقديمة
+                        {t("الاحتفاظ بالقديمة")}
                       </ActionButton>
                     </div>
                   </div>
@@ -238,12 +256,12 @@ export default async function BookingsPage({ params, searchParams }: PageProps<"
                   <div className="flex flex-wrap items-start gap-2">
                     {b.status === "pending" && can(actor, "confirm_bookings") && (
                       <ActionButton action={bookingAction} fields={{ ...fields, op: "confirm" }} className="px-3 py-1.5">
-                        تأكيد
+                        {t("تأكيد")}
                       </ActionButton>
                     )}
                     {b.status === "waitlisted" && can(actor, "confirm_bookings") && (
                       <ActionButton action={bookingAction} fields={{ ...fields, op: "promote" }} variant="secondary" className="px-3 py-1.5">
-                        ترقية لمعلّق
+                        {t("النقل إلى معلّق")}
                       </ActionButton>
                     )}
                     {trip.feeEnabled && manager && (
@@ -252,9 +270,9 @@ export default async function BookingsPage({ params, searchParams }: PageProps<"
                         fields={{ ...fields, op: b.paidAt ? "unpay" : "pay" }}
                         variant="secondary"
                         className="px-3 py-1.5"
-                        confirm={b.paidAt ? `إلغاء تسجيل دفع ${s.name}؟` : undefined}
+                        confirm={b.paidAt ? t("إلغاء تسجيل دفع {name}؟", { name: s.name }) : undefined}
                       >
-                        {b.paidAt ? "إلغاء الدفع" : `سجّل دفع ${Number(trip.feeAmount)} ج`}
+                        {b.paidAt ? t("إلغاء الدفع") : t("تسجيل دفع {amount} ج", { amount: Number(trip.feeAmount) })}
                       </ActionButton>
                     )}
                     {manager && trip.busesEnabled && b.status === "confirmed" && busLoad.length > 0 && (
@@ -266,9 +284,9 @@ export default async function BookingsPage({ params, searchParams }: PageProps<"
                         fields={{ ...fields, op: "cancel" }}
                         variant="ghost"
                         className="px-3 py-1.5 text-danger"
-                        confirm={`إلغاء حجز ${s.name}؟`}
+                        confirm={t("إلغاء حجز {name}؟", { name: s.name })}
                       >
-                        إلغاء الحجز
+                        {t("إلغاء الحجز")}
                       </ActionButton>
                     )}
                   </div>
@@ -280,8 +298,8 @@ export default async function BookingsPage({ params, searchParams }: PageProps<"
       )}
 
       <div className="mt-4 flex justify-between text-sm">
-        {filters.page! > 1 ? <Link href={href({ page: String(filters.page! - 1) })} className="text-primary">→ السابق</Link> : <span />}
-        {hasNext && <Link href={href({ page: String(filters.page! + 1) })} className="text-primary">التالي ←</Link>}
+        {filters.page! > 1 ? <Link href={href({ page: String(filters.page! - 1) })} className="text-primary">{t("السابق")}</Link> : <span />}
+        {hasNext && <Link href={href({ page: String(filters.page! + 1) })} className="text-primary">{t("التالي")}</Link>}
       </div>
     </>
   );

@@ -14,7 +14,7 @@ export async function tripSupervisorAction(_prev: FormState, fd: FormData): Prom
   const ctx = await getRequestCtx();
   const activityId = idSchema.parse(fd.get("activityId"));
   const raw = fd.get("userId");
-  if (!raw) return { ok: false, message: "اختار مشرف" };
+  if (!raw) return { ok: false, message: "اختر مشرفًا" };
   const userId = idSchema.parse(raw);
   const op = z.enum(["add", "remove", "bus"]).parse(fd.get("op"));
 

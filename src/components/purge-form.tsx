@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { useT } from "@/i18n/client";
 import type { FormState } from "@/lib/form-state";
 import { Alert, Button, Input } from "./ui";
 
@@ -14,7 +15,7 @@ export function PurgeForm({
   expected,
   prompt,
   confirmMessage,
-  label = "مسح نهائي",
+  label = "حذف نهائي",
 }: {
   action: (prev: FormState, fd: FormData) => Promise<FormState>;
   id: number;
@@ -23,6 +24,7 @@ export function PurgeForm({
   confirmMessage: string;
   label?: string;
 }) {
+  const t = useT();
   const [state, formAction, pending] = useActionState(action, {});
   return (
     <form action={formAction} className="space-y-2">
@@ -39,13 +41,13 @@ export function PurgeForm({
           const typed = (e.currentTarget.form?.elements.namedItem("confirm") as HTMLInputElement | null)?.value.trim();
           if (typed !== expected.trim()) {
             e.preventDefault();
-            window.alert("النص اللي كتبته مش مطابق");
+            window.alert(t("النص الذي كتبته غير مطابق"));
           } else if (!window.confirm(confirmMessage)) e.preventDefault();
         }}
       >
-        {pending ? "جاري المسح…" : label}
+        {pending ? t("جارٍ الحذف…") : t(label)}
       </Button>
-      {state.message && <Alert tone={state.ok ? "success" : "danger"}>{state.message}</Alert>}
+      {state.message && <Alert tone={state.ok ? "success" : "danger"}>{t(state.message)}</Alert>}
     </form>
   );
 }

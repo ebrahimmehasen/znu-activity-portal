@@ -19,7 +19,7 @@ export async function createAdminAction(_prev: FormState, formData: FormData): P
   const r = await createAdmin(actor, parsed.data, ctx);
   if (!r.ok) return { ok: false, errors: { username: r.error } };
   revalidatePath("/dashboard/admins");
-  return { ok: true, message: `اتضاف ${parsed.data.name}` };
+  return { ok: true, message: `أُضيف ${parsed.data.name}` };
 }
 
 export async function toggleAdminAction(formData: FormData) {
@@ -40,5 +40,5 @@ export async function resetPasswordAction(_prev: FormState, formData: FormData):
   const id = idSchema.parse(formData.get("id"));
   const r = await resetAdminPassword(actor, id, String(formData.get("password") ?? ""), ctx);
   if (!r.ok) return { ok: false, message: r.error };
-  return { ok: true, message: "اتغيّر الباسورد واتعمل خروج من كل أجهزته" };
+  return { ok: true, message: "تم تغيير كلمة المرور وتسجيل خروجه من كل أجهزته" };
 }

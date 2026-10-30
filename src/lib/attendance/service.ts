@@ -80,9 +80,9 @@ export const canStartToday = (trip: Pick<Activity, "status" | "date">) => trip.s
 export async function startTrip(actor: SessionUser, id: number, ctx: RequestCtx): Promise<Result> {
   assertCan(actor, ADMIN);
   const trip = await getTrip(id);
-  if (!trip) return fail("الرحلة مش موجودة");
-  if (trip.status !== "upcoming") return fail(trip.status === "ongoing" ? "الرحلة بدأت بالفعل" : "الرحلة انتهت");
-  if (trip.date !== cairoToday()) return fail("زرار البدء بيشتغل في يوم الرحلة بس");
+  if (!trip) return fail("الرحلة غير موجودة");
+  if (trip.status !== "upcoming") return fail(trip.status === "ongoing" ? "الرحلة بدأت بالفعل" : "انتهت الرحلة");
+  if (trip.date !== cairoToday()) return fail("يمكن بدء الرحلة في يومها فقط");
 
   const now = new Date();
   const started = await db.transaction(async (tx) => {
@@ -102,7 +102,7 @@ export async function startTrip(actor: SessionUser, id: number, ctx: RequestCtx)
     });
     return true;
   });
-  if (!started) return fail("الرحلة اتغيّرت، حدّث الصفحة");
+  if (!started) return fail("تغيّرت الرحلة، حدِّث الصفحة");
   await audit(actor, "activity.started", "activity", id, { title: trip.title }, ctx);
   return { ok: true };
 }
@@ -110,8 +110,8 @@ export async function startTrip(actor: SessionUser, id: number, ctx: RequestCtx)
 export async function endTrip(actor: SessionUser, id: number, ctx: RequestCtx): Promise<Result> {
   assertCan(actor, ADMIN);
   const trip = await getTrip(id);
-  if (!trip) return fail("الرحلة مش موجودة");
-  if (trip.status !== "ongoing") return fail("زرار الإنهاء للرحلات الحالية بس");
+  if (!trip) return fail("الرحلة غير موجودة");
+  if (trip.status !== "ongoing") return fail("يمكن إنهاء الرحلات الجارية فقط");
   const now = new Date();
   await db.transaction(async (tx) => {
     await tx.update(activities).set({ status: "finished", endedAt: now }).where(eq(activities.id, id));
@@ -127,10 +127,10 @@ export async function endTrip(actor: SessionUser, id: number, ctx: RequestCtx): 
 /** finished → ongoing only with an explicit confirmation, and it's audited (plan §3). */
 export async function reopenTrip(actor: SessionUser, id: number, confirmed: boolean, ctx: RequestCtx): Promise<Result> {
   assertCan(actor, ADMIN);
-  if (!confirmed) return fail("لازم تأكيد صريح عشان ترجّع الرحلة حالية");
+  if (!confirmed) return fail("إعادة الرحلة إلى «جارية» تحتاج تأكيدًا صريحًا");
   const trip = await getTrip(id);
-  if (!trip) return fail("الرحلة مش موجودة");
-  if (trip.status !== "finished") return fail("الرحلة مش منتهية");
+  if (!trip) return fail("الرحلة غير موجودة");
+  if (trip.status !== "finished") return fail("الرحلة لم تنتهِ");
   await db.update(activities).set({ status: "ongoing", endedAt: null }).where(eq(activities.id, id));
   await audit(actor, "activity.reopened", "activity", id, { title: trip.title, endedAt: trip.endedAt }, ctx);
   return { ok: true };
@@ -149,8 +149,8 @@ async function loadCheckpoint(actor: SessionUser, id: number) {
 }
 
 export const checkpointInputSchema = z.object({
-  name: z.string().trim().min(2, "اكتب اسم التجمع").max(150),
-  time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "اكتب ميعاد التجمع"),
+  name: z.string().trim().min(2, "أدخل اسم التجمع").max(150),
+  time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "أدخل موعد التجمع"),
 });
 
 export async function addCheckpoint(
@@ -161,9 +161,9 @@ export async function addCheckpoint(
 ): Promise<Result<{ id: number }> | { ok: false; error?: string; errors: Record<string, string> }> {
   assertCan(actor, "manage_gatherings");
   const trip = await getTrip(activityId);
-  if (!trip || !(await canViewTrip(actor, activityId))) return fail("الرحلة مش موجودة");
-  if (trip.status !== "ongoing") return fail("التجمعات بتتضاف والرحلة حالية بس");
-  if (!trip.rosterLockedAt) return fail("أكّد عدد الرحلة في التجمع الأول الأول");
+  if (!trip || !(await canViewTrip(actor, activityId))) return fail("الرحلة غير موجودة");
+  if (trip.status !== "ongoing") return fail("تُضاف التجمعات أثناء الرحلة فقط");
+  if (!trip.rosterLockedAt) return fail("أكِّد عدد الرحلة في التجمع الأول أولًا");
   const parsed = checkpointInputSchema.safeParse(input);
   if (!parsed.success) {
     const errors: Record<string, string> = {};
@@ -189,10 +189,10 @@ export async function addCheckpoint(
 export async function setCheckpointOpen(actor: SessionUser, id: number, open: boolean, ctx: RequestCtx): Promise<Result> {
   assertCan(actor, "manage_gatherings");
   const row = await loadCheckpoint(actor, id);
-  if (!row) return fail("التجمع مش موجود");
+  if (!row) return fail("التجمع غير موجود");
   const { cp, trip } = row;
-  if (trip.status !== "ongoing") return fail("الرحلة مش حالية");
-  if (cp.sortOrder === 1) return fail("التجمع الأول بيتقفل مع تأكيد عدد الرحلة");
+  if (trip.status !== "ongoing") return fail("الرحلة ليست جارية");
+  if (cp.sortOrder === 1) return fail("يُغلق التجمع الأول عند تأكيد عدد الرحلة");
 
   if (open) {
     if (cp.openedAt && !cp.closedAt) return fail("التجمع مفتوح بالفعل");
@@ -200,13 +200,13 @@ export async function setCheckpointOpen(actor: SessionUser, id: number, open: bo
       .select({ name: checkpoints.name })
       .from(checkpoints)
       .where(and(eq(checkpoints.activityId, trip.id), isNotNull(checkpoints.openedAt), isNull(checkpoints.closedAt)));
-    if (other) return fail(`اقفل «${other.name}» الأول`);
+    if (other) return fail(`أغلق «${other.name}» أولًا`);
     await db
       .update(checkpoints)
       .set({ openedAt: cp.openedAt ?? new Date(), closedAt: null })
       .where(eq(checkpoints.id, id));
   } else {
-    if (!cp.openedAt || cp.closedAt) return fail("التجمع مش مفتوح");
+    if (!cp.openedAt || cp.closedAt) return fail("التجمع غير مفتوح");
     await db.update(checkpoints).set({ closedAt: new Date() }).where(eq(checkpoints.id, id));
   }
   await audit(actor, open ? "checkpoint.opened" : "checkpoint.closed", "checkpoint", id, { activityId: trip.id, name: cp.name }, ctx);
@@ -305,7 +305,7 @@ export type SyncOutcome = { clientUuid: string; result: SyncResult; message: str
 
 export const MAX_SYNC_BATCH = 500;
 
-const REJECTION_MESSAGES = { invalid: "QR منتهي أو مش صحيح", revoked: "الحجز ده اتلغى، الـ QR مبقاش شغال" } as const;
+const REJECTION_MESSAGES = { invalid: "رمز QR منتهي أو غير صحيح", revoked: "أُلغي هذا الحجز ولم يعد الرمز صالحًا" } as const;
 
 type SyncContext = {
   actor: SessionUser;
@@ -322,7 +322,7 @@ type SyncContext = {
 export async function syncAttendance(actor: SessionUser, activityId: number, records: unknown[]): Promise<Result<{ outcomes: SyncOutcome[] }>> {
   if (!can(actor, "take_attendance") && !can(actor, ADMIN)) throw new ForbiddenError();
   const trip = await getTrip(activityId);
-  if (!trip || !(await canViewTrip(actor, activityId))) return fail("الرحلة مش موجودة");
+  if (!trip || !(await canViewTrip(actor, activityId))) return fail("الرحلة غير موجودة");
   if (!Array.isArray(records) || records.length > MAX_SYNC_BATCH) return fail("عدد التسجيلات كبير");
 
   const sc: SyncContext = {
@@ -345,7 +345,7 @@ export async function syncAttendance(actor: SessionUser, activityId: number, rec
     } catch (e) {
       if (e instanceof ForbiddenError) throw e;
       console.error("attendance sync", e);
-      outcomes.push({ clientUuid: uuid, result: "error", message: "حصل خطأ، هيتعاد رفعه" });
+      outcomes.push({ clientUuid: uuid, result: "error", message: "حدث خطأ، وستُعاد المحاولة" });
     }
   }
   return { ok: true, outcomes };
@@ -355,41 +355,41 @@ function outcomeOf(rec: Attendance, name: string): SyncOutcome {
   if (rec.rejectedReason === "invalid" || rec.rejectedReason === "revoked") {
     return { clientUuid: rec.clientUuid, result: rec.rejectedReason, message: REJECTION_MESSAGES[rec.rejectedReason], name };
   }
-  if (rec.voidedAt) return { clientUuid: rec.clientUuid, result: "duplicate", message: "التسجيل ده اتلغى من الأدمن", name };
+  if (rec.voidedAt) return { clientUuid: rec.clientUuid, result: "duplicate", message: "ألغى المسؤول هذا التسجيل", name };
   return rec.confirmedAt
-    ? { clientUuid: rec.clientUuid, result: "recorded", message: rec.status === "late" ? "اتسجل متأخر" : "اتسجل حضور", name, status: rec.status }
-    : { clientUuid: rec.clientUuid, result: "pending", message: "اتسجل، مستني تأكيد الأدمن", name, status: rec.status };
+    ? { clientUuid: rec.clientUuid, result: "recorded", message: rec.status === "late" ? "سُجِّل متأخرًا" : "سُجِّل الحضور", name, status: rec.status }
+    : { clientUuid: rec.clientUuid, result: "pending", message: "سُجِّل، بانتظار تأكيد المسؤول", name, status: rec.status };
 }
 
 async function recordStudent(sc: SyncContext, rec: Extract<SyncRecord, { kind: "student" }>): Promise<SyncOutcome> {
   const { actor, trip } = sc;
   const out = (result: SyncResult, message: string, name?: string): SyncOutcome => ({ clientUuid: rec.clientUuid, result, message, name });
-  if (!can(actor, "take_attendance")) return out("forbidden", "مش عندك صلاحية أخذ الحضور");
+  if (!can(actor, "take_attendance")) return out("forbidden", "ليس لديك صلاحية تسجيل الحضور");
 
   const [b] = await db
     .select({ id: bookings.id, status: bookings.status, busId: bookings.busId, name: students.name })
     .from(bookings)
     .innerJoin(students, eq(students.id, bookings.studentId))
     .where(and(eq(bookings.id, rec.bookingId), eq(bookings.activityId, trip.id)));
-  if (!b) return out("not_in_trip", "الطالب مش في الرحلة دي");
-  if (!inScope(sc.scope, b)) return out("forbidden", "الطالب ده مش في أتوبيسك");
+  if (!b) return out("not_in_trip", "الطالب ليس في هذه الرحلة");
+  if (!inScope(sc.scope, b)) return out("forbidden", "هذا الطالب ليس في حافلتك");
 
   // Idempotent re-upload: the same device record always gets the same answer.
   const [seen] = await db.select().from(attendances).where(eq(attendances.clientUuid, rec.clientUuid));
   if (seen) return seen.bookingId === b.id ? outcomeOf(seen, b.name) : out("error", "تسجيل غير صالح");
 
   const cp = sc.checkpoints.get(rec.checkpointId);
-  if (!cp) return out("closed", "التجمع ده مش موجود", b.name);
+  if (!cp) return out("closed", "هذا التجمع غير موجود", b.name);
   if (b.status !== "confirmed") {
-    return rec.method === "qr" ? reject(sc, rec, cp, "revoked", b.name) : out("not_in_trip", "حجز الطالب مش مؤكد", b.name);
+    return rec.method === "qr" ? reject(sc, rec, cp, "revoked", b.name) : out("not_in_trip", "حجز الطالب غير مؤكد", b.name);
   }
-  if (cp.sortOrder > 1 && (await isFinalAbsent(b.id))) return out("not_in_trip", "الطالب متعلّم غياب نهائي من التجمع الأول", b.name);
+  if (cp.sortOrder > 1 && (await isFinalAbsent(b.id))) return out("not_in_trip", "سُجِّل غياب الطالب نهائيًا في التجمع الأول", b.name);
 
   const at = new Date(rec.recordedAt);
-  if (rec.recordedAt > sc.now + SKEW_MS) return out("error", "ساعة الموبايل متقدمة، ظبطها وسجّل تاني", b.name);
-  if (cp.sortOrder === 1 && trip.rosterLockedAt) return out("closed", "عدد الرحلة اتأكد والتجمع الأول اتقفل", b.name);
+  if (rec.recordedAt > sc.now + SKEW_MS) return out("error", "ساعة الهاتف متقدمة، اضبطها وأعد التسجيل", b.name);
+  if (cp.sortOrder === 1 && trip.rosterLockedAt) return out("closed", "أُكِّد عدد الرحلة وأُغلق التجمع الأول", b.name);
   if (!cp.openedAt || rec.recordedAt < cp.openedAt.getTime() - SKEW_MS || (cp.closedAt && rec.recordedAt > cp.closedAt.getTime() + SKEW_MS)) {
-    return out("closed", "التجمع كان مقفول وقت التسجيل", b.name);
+    return out("closed", "كان التجمع مغلقًا وقت التسجيل", b.name);
   }
 
   let verified = false;
@@ -423,7 +423,7 @@ async function recordStudent(sc: SyncContext, rec: Extract<SyncRecord, { kind: "
     .select()
     .from(attendances)
     .where(and(eq(attendances.checkpointId, cp.id), eq(attendances.bookingId, b.id), activeRecord()));
-  if (!standing) return out("error", "حصل خطأ، هيتعاد رفعه", b.name);
+  if (!standing) return out("error", "حدث خطأ، وستُعاد المحاولة", b.name);
 
   if (standing.status === "absent") {
     // Marked absent before the count was confirmed, but the student showed up after all.
@@ -436,7 +436,7 @@ async function recordStudent(sc: SyncContext, rec: Extract<SyncRecord, { kind: "
   if (at < standing.recordedAt && (verified || direct)) {
     await db.update(attendances).set({ recordedAt: at, status }).where(eq(attendances.id, standing.id));
   }
-  return { ...out("duplicate", "الطالب متسجل قبل كده", b.name), status: standing.status };
+  return { ...out("duplicate", "الطالب مسجَّل من قبل", b.name), status: standing.status };
 }
 
 async function reject(sc: SyncContext, rec: Extract<SyncRecord, { kind: "student" }>, cp: Checkpoint, reason: "invalid" | "revoked", name: string): Promise<SyncOutcome> {
@@ -463,21 +463,21 @@ async function isFinalAbsent(bookingId: number) {
 
 async function recordStaff(sc: SyncContext, rec: Extract<SyncRecord, { kind: "staff" }>): Promise<SyncOutcome> {
   const out = (result: SyncResult, message: string, name?: string): SyncOutcome => ({ clientUuid: rec.clientUuid, result, message, name });
-  if (!can(sc.actor, ADMIN)) return out("forbidden", "تسجيل حضور المشرفين للأدمن بس");
+  if (!can(sc.actor, ADMIN)) return out("forbidden", "تسجيل حضور المشرفين للمسؤولين فقط");
   const [u] = await db.select({ name: users.name }).from(users).where(and(eq(users.id, rec.userId), eq(users.role, "supervisor")));
-  if (!u || !(await assignment(rec.userId, sc.trip.id))) return out("not_in_trip", "المشرف ده مش على الرحلة", u?.name);
-  if (rec.recordedAt > sc.now + SKEW_MS) return out("error", "ساعة الموبايل متقدمة، ظبطها وسجّل تاني", u.name);
+  if (!u || !(await assignment(rec.userId, sc.trip.id))) return out("not_in_trip", "هذا المشرف ليس مضافًا إلى الرحلة", u?.name);
+  if (rec.recordedAt > sc.now + SKEW_MS) return out("error", "ساعة الهاتف متقدمة، اضبطها وأعد التسجيل", u.name);
   if (rec.method === "qr") {
     const check = rec.code ? await checkSupervisorCode(rec.userId, rec.code, rec.recordedAt) : "invalid";
-    if (check === "invalid") return out("invalid", "QR منتهي أو مش صحيح", u.name);
-    if (check === "revoked") return out("revoked", "حساب المشرف ده موقوف", u.name);
+    if (check === "invalid") return out("invalid", "رمز QR منتهي أو غير صحيح", u.name);
+    if (check === "revoked") return out("revoked", "حساب هذا المشرف موقوف", u.name);
   }
   const [row] = await db
     .insert(supervisorAttendances)
     .values({ activityId: sc.trip.id, userId: rec.userId, method: rec.method, recordedAt: new Date(rec.recordedAt), recordedBy: sc.actor.id })
     .onConflictDoNothing()
     .returning();
-  return row ? out("recorded", "اتسجل حضور المشرف", u.name) : out("duplicate", "المشرف متسجل قبل كده", u.name);
+  return row ? out("recorded", "سُجِّل حضور المشرف", u.name) : out("duplicate", "المشرف مسجَّل من قبل", u.name);
 }
 
 // ─── Admin decisions ─────────────────────────────────────────────────────────
@@ -496,15 +496,15 @@ async function loadRecord(actor: SessionUser, id: number) {
 export async function markAbsent(actor: SessionUser, checkpointId: number, bookingId: number, ctx: RequestCtx): Promise<Result> {
   assertCan(actor, ADMIN);
   const row = await loadCheckpoint(actor, checkpointId);
-  if (!row) return fail("التجمع مش موجود");
+  if (!row) return fail("التجمع غير موجود");
   const { cp, trip } = row;
-  if (cp.sortOrder !== 1) return fail("الغياب النهائي بيتسجل في التجمع الأول بس");
-  if (trip.rosterLockedAt) return fail("عدد الرحلة اتأكد بالفعل");
+  if (cp.sortOrder !== 1) return fail("يُسجَّل الغياب النهائي في التجمع الأول فقط");
+  if (trip.rosterLockedAt) return fail("أُكِّد عدد الرحلة بالفعل");
   const [b] = await db
     .select({ id: bookings.id })
     .from(bookings)
     .where(and(eq(bookings.id, bookingId), eq(bookings.activityId, trip.id), eq(bookings.status, "confirmed")));
-  if (!b) return fail("الطالب مش في الرحلة");
+  if (!b) return fail("الطالب ليس في الرحلة");
 
   const now = new Date();
   const [inserted] = await db
@@ -522,7 +522,7 @@ export async function markAbsent(actor: SessionUser, checkpointId: number, booki
     })
     .onConflictDoNothing()
     .returning({ id: attendances.id });
-  if (!inserted) return fail("الطالب متسجل بالفعل. الغي تسجيله الأول لو عايز تعلّمه غياب");
+  if (!inserted) return fail("الطالب مسجَّل بالفعل. ألغِ تسجيله أولًا إذا أردت تسجيل غيابه");
   await audit(actor, "attendance.marked_absent", "booking", bookingId, { activityId: trip.id, checkpointId }, ctx);
   return { ok: true };
 }
@@ -530,13 +530,13 @@ export async function markAbsent(actor: SessionUser, checkpointId: number, booki
 export async function markRemainingAbsent(actor: SessionUser, checkpointId: number, ctx: RequestCtx): Promise<Result<{ count: number }>> {
   assertCan(actor, ADMIN);
   const row = await loadCheckpoint(actor, checkpointId);
-  if (!row) return fail("التجمع مش موجود");
+  if (!row) return fail("التجمع غير موجود");
   const { cp, trip } = row;
-  if (cp.sortOrder !== 1) return fail("الغياب النهائي بيتسجل في التجمع الأول بس");
-  if (trip.rosterLockedAt) return fail("عدد الرحلة اتأكد بالفعل");
+  if (cp.sortOrder !== 1) return fail("يُسجَّل الغياب النهائي في التجمع الأول فقط");
+  if (trip.rosterLockedAt) return fail("أُكِّد عدد الرحلة بالفعل");
 
   const remaining = (await checkpointRoster(trip, cp, { kind: "all" })).filter((r) => r.state === "unrecorded");
-  if (!remaining.length) return fail("مفيش حد لسه متسجلش");
+  if (!remaining.length) return fail("لا يوجد طلاب غير مسجَّلين");
   const now = new Date();
   const inserted = await db
     .insert(attendances)
@@ -563,7 +563,7 @@ export async function markRemainingAbsent(actor: SessionUser, checkpointId: numb
 export async function confirmRecords(actor: SessionUser, checkpointId: number, recordId: number | null, ctx: RequestCtx): Promise<Result<{ count: number }>> {
   assertCan(actor, ADMIN);
   const row = await loadCheckpoint(actor, checkpointId);
-  if (!row) return fail("التجمع مش موجود");
+  if (!row) return fail("التجمع غير موجود");
   const updated = await db
     .update(attendances)
     .set({ confirmedBy: actor.id, confirmedAt: new Date() })
@@ -576,7 +576,7 @@ export async function confirmRecords(actor: SessionUser, checkpointId: number, r
       ),
     )
     .returning({ id: attendances.id });
-  if (!updated.length) return fail(recordId ? "التسجيل ده مش مستني تأكيد" : "مفيش تسجيلات مستنية تأكيد");
+  if (!updated.length) return fail(recordId ? "هذا التسجيل لا ينتظر التأكيد" : "لا توجد تسجيلات بانتظار التأكيد");
   await audit(actor, "attendance.confirmed", "checkpoint", checkpointId, { activityId: row.trip.id, count: updated.length, recordId }, ctx);
   return { ok: true, count: updated.length };
 }
@@ -585,11 +585,11 @@ export async function confirmRecords(actor: SessionUser, checkpointId: number, r
 export async function voidRecord(actor: SessionUser, recordId: number, ctx: RequestCtx): Promise<Result> {
   assertCan(actor, ADMIN);
   const row = await loadRecord(actor, recordId);
-  if (!row) return fail("التسجيل مش موجود");
+  if (!row) return fail("التسجيل غير موجود");
   const { rec, cp, trip } = row;
-  if (rec.voidedAt || rec.rejectedReason) return fail("التسجيل ده مش ساري");
+  if (rec.voidedAt || rec.rejectedReason) return fail("هذا التسجيل غير ساري");
   if (cp.sortOrder === 1 && trip.rosterLockedAt) {
-    return fail(rec.status === "absent" ? "استخدم «إرجاع للرحلة» للطالب ده" : "عدد الرحلة اتأكد. لو الطالب مكانش موجود الغي حجزه");
+    return fail(rec.status === "absent" ? "استخدم «إعادة إلى الرحلة» لهذا الطالب" : "أُكِّد عدد الرحلة. إذا لم يكن الطالب موجودًا فألغِ حجزه");
   }
   await db.update(attendances).set({ voidedBy: actor.id, voidedAt: new Date() }).where(eq(attendances.id, recordId));
   await audit(
@@ -607,15 +607,15 @@ export async function voidRecord(actor: SessionUser, recordId: number, ctx: Requ
 export async function lockRoster(actor: SessionUser, activityId: number, ctx: RequestCtx): Promise<Result<{ present: number; absent: number }>> {
   assertCan(actor, ADMIN);
   const trip = await getTrip(activityId);
-  if (!trip) return fail("الرحلة مش موجودة");
-  if (trip.status !== "ongoing") return fail("الرحلة مش حالية");
-  if (trip.rosterLockedAt) return fail("عدد الرحلة اتأكد بالفعل");
+  if (!trip) return fail("الرحلة غير موجودة");
+  if (trip.status !== "ongoing") return fail("الرحلة ليست جارية");
+  if (trip.rosterLockedAt) return fail("أُكِّد عدد الرحلة بالفعل");
   const [cp] = await db.select().from(checkpoints).where(and(eq(checkpoints.activityId, activityId), eq(checkpoints.sortOrder, 1)));
-  if (!cp) return fail("التجمع الأول مش موجود");
+  if (!cp) return fail("التجمع الأول غير موجود");
 
   const t = tallies(await checkpointRoster(trip, cp, { kind: "all" }));
-  if (t.unrecorded) return fail(`فيه ${t.unrecorded} طالب لسه متسجلوش. اختار حضور أو غياب لكل واحد`);
-  if (t.pending) return fail(`فيه ${t.pending} تسجيل مستني التأكيد`);
+  if (t.unrecorded) return fail(`يوجد ${t.unrecorded} طالب لم يُسجَّلوا بعد. اختر الحضور أو الغياب لكل منهم`);
+  if (t.pending) return fail(`يوجد ${t.pending} تسجيل بانتظار التأكيد`);
 
   const now = new Date();
   const locked = await db.transaction(async (tx) => {
@@ -628,7 +628,7 @@ export async function lockRoster(actor: SessionUser, activityId: number, ctx: Re
     await tx.update(checkpoints).set({ closedAt: now }).where(eq(checkpoints.id, cp.id));
     return true;
   });
-  if (!locked) return fail("عدد الرحلة اتأكد بالفعل");
+  if (!locked) return fail("أُكِّد عدد الرحلة بالفعل");
   const present = t.present + t.late;
   await audit(actor, "activity.roster_locked", "activity", activityId, { present, absent: t.absent }, ctx);
   return { ok: true, present, absent: t.absent };
@@ -637,15 +637,15 @@ export async function lockRoster(actor: SessionUser, activityId: number, ctx: Re
 /** Brings a final absentee back for the coming gatherings (when the setting allows it). */
 export async function restoreAbsent(actor: SessionUser, bookingId: number, ctx: RequestCtx): Promise<Result> {
   assertCan(actor, ADMIN);
-  if ((await getSetting("restore_absent_student")) !== "allowed") return fail("إرجاع الطلبة المتعلّمين غياب ممنوع من الإعدادات");
+  if ((await getSetting("restore_absent_student")) !== "allowed") return fail("إعادة الطلاب المسجَّل غيابهم ممنوعة في الإعدادات");
   const [row] = await db
     .select({ rec: attendances, trip: activities })
     .from(attendances)
     .innerJoin(checkpoints, eq(checkpoints.id, attendances.checkpointId))
     .innerJoin(activities, eq(activities.id, checkpoints.activityId))
     .where(and(eq(attendances.bookingId, bookingId), eq(checkpoints.sortOrder, 1), eq(attendances.status, "absent"), activeRecord()));
-  if (!row) return fail("الطالب مش متعلّم غياب نهائي");
-  if (row.trip.status !== "ongoing") return fail("الرحلة مش حالية");
+  if (!row) return fail("الطالب ليس مسجَّل الغياب نهائيًا");
+  if (row.trip.status !== "ongoing") return fail("الرحلة ليست جارية");
   await db.update(attendances).set({ voidedBy: actor.id, voidedAt: new Date() }).where(eq(attendances.id, row.rec.id));
   await audit(actor, "attendance.restored", "booking", bookingId, { activityId: row.trip.id }, ctx);
   return { ok: true };
@@ -670,7 +670,7 @@ export async function removeSupervisorAttendance(actor: SessionUser, activityId:
     .delete(supervisorAttendances)
     .where(and(eq(supervisorAttendances.activityId, activityId), eq(supervisorAttendances.userId, userId)))
     .returning({ userId: supervisorAttendances.userId });
-  if (!removed.length) return fail("المشرف مش متسجل");
+  if (!removed.length) return fail("المشرف غير مسجَّل");
   await audit(actor, "attendance.supervisor_removed", "user", userId, { activityId }, ctx);
   return { ok: true };
 }

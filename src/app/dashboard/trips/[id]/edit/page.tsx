@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getT } from "@/i18n/server";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui";
 import { requireAbility } from "@/lib/auth/session";
@@ -6,7 +7,9 @@ import { shortTime } from "@/lib/dates";
 import { getSchedule, getTrip } from "@/lib/trips/service";
 import { TripForm } from "../../trip-form";
 
-export const metadata: Metadata = { title: "تعديل رحلة" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getT())("تعديل رحلة") };
+}
 
 export default async function EditTripPage({ params }: PageProps<"/dashboard/trips/[id]/edit">) {
   await requireAbility("manage_activities");
@@ -14,10 +17,11 @@ export default async function EditTripPage({ params }: PageProps<"/dashboard/tri
   const trip = Number.isInteger(id) ? await getTrip(id) : null;
   if (!trip || trip.status === "finished") notFound();
   const schedule = await getSchedule(trip.id);
+  const t = await getT();
 
   return (
     <>
-      <PageHeader title={`تعديل: ${trip.title}`} />
+      <PageHeader title={t("تعديل: {trip}", { trip: trip.title })} />
       <TripForm
         initial={{
           id: trip.id,

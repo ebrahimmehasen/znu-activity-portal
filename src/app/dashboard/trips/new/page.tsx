@@ -1,15 +1,19 @@
 import type { Metadata } from "next";
+import { getT } from "@/i18n/server";
 import { PageHeader } from "@/components/ui";
 import { requireAbility } from "@/lib/auth/session";
 import { TripForm } from "../trip-form";
 
-export const metadata: Metadata = { title: "رحلة جديدة" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getT())("رحلة جديدة") };
+}
 
 export default async function NewTripPage() {
   await requireAbility("manage_activities");
+  const t = await getT();
   return (
     <>
-      <PageHeader title="رحلة جديدة" />
+      <PageHeader title={t("رحلة جديدة")} />
       <TripForm
         initial={{
           title: "",

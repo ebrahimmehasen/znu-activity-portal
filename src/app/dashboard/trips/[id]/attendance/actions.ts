@@ -107,7 +107,7 @@ export async function attendanceAction(_prev: FormState, fd: FormData): Promise<
 
   if (!r.ok) return { ok: false, message: r.error };
   refresh(activityId);
-  if (op === "lock" && "present" in r) return { ok: true, message: `اتأكد العدد: ${r.present} حاضر و${r.absent} غياب` };
+  if (op === "lock" && "present" in r) return { ok: true, message: `أُكِّد العدد: ${r.present} حاضر و${r.absent} غائب` };
   if ("count" in r && r.count !== undefined) return { ok: true, message: `تم (${r.count})` };
   return { ok: true };
 }
@@ -118,5 +118,5 @@ export async function addCheckpointAction(_prev: FormState, fd: FormData): Promi
   const r = await addCheckpoint(actor, activityId, { name: String(fd.get("name") ?? ""), time: String(fd.get("time") ?? "") }, await getRequestCtx());
   if (!r.ok) return { ok: false, message: "error" in r ? r.error : undefined, errors: "errors" in r ? r.errors : undefined };
   refresh(activityId);
-  return { ok: true, message: "اتضاف التجمع. افتحه لما يبدأ" };
+  return { ok: true, message: "أُضيف التجمع. افتحه عند بدئه" };
 }

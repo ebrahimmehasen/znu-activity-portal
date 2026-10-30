@@ -7,8 +7,8 @@ const COST = process.env.NODE_ENV === "test" && process.env.BCRYPT_COST ? Number
 /** bcrypt only uses the first 72 bytes, so longer passwords are rejected rather than silently truncated. */
 export const passwordSchema = z
   .string()
-  .min(8, "الباسورد لازم يكون 8 حروف على الأقل")
-  .refine((p) => Buffer.byteLength(p, "utf8") <= 72, "الباسورد طويل جدًا");
+  .min(8, "يجب ألا تقل كلمة المرور عن 8 أحرف")
+  .refine((p) => Buffer.byteLength(p, "utf8") <= 72, "كلمة المرور طويلة جدًا");
 
 export function hashPassword(plain: string) {
   return bcrypt.hash(plain, COST);

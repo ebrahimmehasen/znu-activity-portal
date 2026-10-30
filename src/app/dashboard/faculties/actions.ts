@@ -22,7 +22,7 @@ export async function renameFacultyAction(_prev: FormState, formData: FormData):
   const r = await updateFaculty(actor, id, { name: String(formData.get("name") ?? "") }, await getRequestCtx());
   if (!r.ok) return { ok: false, message: r.error };
   revalidatePath("/dashboard/faculties");
-  return { ok: true, message: "اتحفظ" };
+  return { ok: true, message: "تم الحفظ" };
 }
 
 export async function toggleFacultyAction(formData: FormData) {

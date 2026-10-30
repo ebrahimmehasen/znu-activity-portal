@@ -36,14 +36,14 @@ export async function createSupervisorAction(_prev: FormState, fd: FormData): Pr
   if (!parsed.success) return fieldErrors(parsed.error);
   const r = await createSupervisor(actor, parsed.data, ctx);
   if (!r.ok) return { ok: false, errors: { username: r.error } };
-  return done(`اتضاف ${parsed.data.name}`);
+  return done(`أُضيف ${parsed.data.name}`);
 }
 
 export async function permissionsAction(_prev: FormState, fd: FormData): Promise<FormState> {
   const { actor, ctx } = await guard();
   const r = await setSupervisorPermissions(actor, idSchema.parse(fd.get("id")), fd.getAll("permissions") as SupervisorPermission[], ctx);
   if (!r.ok) return { ok: false, message: r.error };
-  return done("اتحفظت الصلاحيات");
+  return done("حُفظت الصلاحيات");
 }
 
 export async function toggleSupervisorAction(_prev: FormState, fd: FormData): Promise<FormState> {
@@ -64,5 +64,5 @@ export async function resetSupervisorPasswordAction(_prev: FormState, fd: FormDa
   const { actor, ctx } = await guard();
   const r = await resetSupervisorPassword(actor, idSchema.parse(fd.get("id")), String(fd.get("password") ?? ""), ctx);
   if (!r.ok) return { ok: false, message: r.error };
-  return { ok: true, message: "اتغيّر الباسورد واتعمل خروج من كل أجهزته" };
+  return { ok: true, message: "تم تغيير كلمة المرور وتسجيل خروجه من كل أجهزته" };
 }

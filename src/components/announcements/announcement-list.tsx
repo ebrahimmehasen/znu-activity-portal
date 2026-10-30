@@ -2,7 +2,9 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui";
 import type { AnnouncementAudience } from "@/db/schema";
+import { getI18n } from "@/i18n/server";
 import { AUDIENCE_LABELS } from "@/lib/announcements/labels";
+import { formatStamp } from "@/lib/dates";
 
 export type AnnouncementItem = {
   id: number;
@@ -16,13 +18,11 @@ export type AnnouncementItem = {
   read: boolean;
 };
 
-const stamp = new Intl.DateTimeFormat("ar-EG", { timeZone: "Africa/Cairo", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
-
 /**
  * Newest first. "جديد" marks the ones unread when the page rendered; the page marks them
  * read right after, so they show as new this one time.
  */
-export function AnnouncementList({
+export async function AnnouncementList({
   items,
   tripHref,
   showAudience = true,
@@ -34,20 +34,21 @@ export function AnnouncementList({
   showAudience?: boolean;
   actions?: (item: AnnouncementItem) => ReactNode;
 }) {
+  const { locale, t } = await getI18n();
   return (
     <ul className="space-y-3">
       {items.map((a) => (
         <li key={a.id} className={`rounded-xl border p-3 ${a.read ? "border-border bg-surface" : "border-primary/40 bg-primary/5"}`}>
           <div className="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
-            {!a.read && <Badge tone="danger">جديد</Badge>}
+            {!a.read && <Badge tone="danger">{t("جديد")}</Badge>}
             {tripHref && (
               <Link href={tripHref(a.activityId)} className="font-semibold text-primary">
                 {a.tripTitle}
               </Link>
             )}
-            {showAudience && <Badge>{AUDIENCE_LABELS[a.audience]}</Badge>}
-            <span>{a.senderName ?? "الإدارة"}</span>
-            <time dateTime={a.createdAt.toISOString()}>{stamp.format(a.createdAt)}</time>
+            {showAudience && <Badge>{t(AUDIENCE_LABELS[a.audience])}</Badge>}
+            <span>{a.senderName ?? t("الإدارة")}</span>
+            <time dateTime={a.createdAt.toISOString()}>{formatStamp(a.createdAt, locale)}</time>
           </div>
           <p className="whitespace-pre-line break-words leading-7">{a.body}</p>
           {actions && <div className="mt-2 flex justify-end">{actions(a)}</div>}

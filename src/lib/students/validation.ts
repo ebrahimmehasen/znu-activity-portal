@@ -32,15 +32,15 @@ export function isValidNationalId(id: string, today = new Date()) {
 
 export const phoneSchema = z.preprocess(
   digitsOnly,
-  z.string().regex(/^01[0125]\d{8}$/, "رقم الهاتف لازم يكون 11 رقم ويبدأ بـ 010 أو 011 أو 012 أو 015"),
+  z.string().regex(/^01[0125]\d{8}$/, "يجب أن يتكون رقم الهاتف من 11 رقمًا ويبدأ بـ 010 أو 011 أو 012 أو 015"),
 );
 
 export const nationalIdSchema = z.preprocess(
   digitsOnly,
   z
     .string()
-    .regex(/^\d{14}$/, "الرقم القومي لازم يكون 14 رقم")
-    .refine((v) => isValidNationalId(v), "الرقم القومي غير صحيح، راجعه تاني"),
+    .regex(/^\d{14}$/, "يجب أن يتكون الرقم القومي من 14 رقمًا")
+    .refine((v) => isValidNationalId(v), "الرقم القومي غير صحيح، راجعه مرة أخرى"),
 );
 
 export const studentInputSchema = z.object({
@@ -51,12 +51,12 @@ export const studentInputSchema = z.object({
       z
         .string()
         .max(200, "الاسم طويل جدًا")
-        .refine((v) => v.split(" ").length >= 4, "اكتب الاسم رباعي"),
+        .refine((v) => v.split(" ").length >= 4, "أدخل الاسم رباعيًا"),
     ),
   phone: phoneSchema,
   nationalId: nationalIdSchema,
-  facultyId: z.coerce.number({ message: "اختار الكلية" }).int().positive("اختار الكلية"),
-  year: z.coerce.number({ message: "اختار الفرقة" }).int().min(1, "اختار الفرقة").max(5, "اختار الفرقة"),
+  facultyId: z.coerce.number({ message: "اختر الكلية" }).int().positive("اختر الكلية"),
+  year: z.coerce.number({ message: "اختر الفرقة" }).int().min(1, "اختر الفرقة").max(5, "اختر الفرقة"),
 });
 
 export type StudentInput = z.input<typeof studentInputSchema>;

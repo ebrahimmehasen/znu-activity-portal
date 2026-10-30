@@ -23,11 +23,11 @@ type Result<T = object> = ({ ok: true } & T) | Fail;
 const LIST_LIMIT = 100;
 
 export const announcementInputSchema = z.object({
-  audience: z.enum(["supervisors", "all"], { message: "اختار مين يشوف الإعلان" }),
+  audience: z.enum(["supervisors", "all"], { message: "اختر من يرى الإعلان" }),
   body: z
     .string()
     .trim()
-    .min(1, "اكتب نص الإعلان")
+    .min(1, "أدخل نص الإعلان")
     .max(MAX_ANNOUNCEMENT_LENGTH, `الإعلان أطول من ${MAX_ANNOUNCEMENT_LENGTH} حرف`),
 });
 export type AnnouncementInput = z.infer<typeof announcementInputSchema>;
@@ -88,7 +88,7 @@ export async function sendAnnouncement(actor: SessionUser, activityId: number, i
 /** Admins delete any announcement; a supervisor only their own. */
 export async function deleteAnnouncement(actor: SessionUser, id: number, ctx: RequestCtx): Promise<Result> {
   const [row] = await db.select().from(announcements).where(eq(announcements.id, id));
-  if (!row) return { ok: false, error: "الإعلان مش موجود" };
+  if (!row) return { ok: false, error: "الإعلان غير موجود" };
   const mayDelete = can(actor, "manage_activities") || (row.senderId === actor.id && can(actor, "send_announcements"));
   if (!mayDelete || !(await canViewTrip(actor, row.activityId))) throw new ForbiddenError();
   await db.delete(announcements).where(eq(announcements.id, id));

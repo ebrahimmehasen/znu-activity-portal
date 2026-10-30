@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
+import { getT } from "@/i18n/server";
 import { notFound } from "next/navigation";
 import { Scanner } from "@/components/attendance/scanner";
 import { can } from "@/lib/authz";
 import { requireVisibleTrip } from "@/lib/trips/access";
 
-export const metadata: Metadata = { title: "Scan الحضور" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getT())("مسح رموز الحضور") };
+}
 
 /**
  * Kept by the service worker for offline use, so the server renders no roster data:

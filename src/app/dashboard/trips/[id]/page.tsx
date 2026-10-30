@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getI18n, getT } from "@/i18n/server";
 import Link from "next/link";
 import { ConfirmButton } from "@/components/confirm-button";
 import { PurgeForm } from "@/components/purge-form";
@@ -18,7 +19,9 @@ import { BookingsCard } from "./bookings/bookings-card";
 import { BusesCard } from "./buses/buses-card";
 import { TripSupervisorsCard } from "./supervisors/supervisors-card";
 
-export const metadata: Metadata = { title: "تفاصيل الرحلة" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getT())("تفاصيل الرحلة") };
+}
 
 function Info({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -38,40 +41,41 @@ export default async function TripPage({ params }: PageProps<"/dashboard/trips/[
     actor.role === "supervisor" ? assignment(actor.id, trip.id) : Promise.resolve(null),
   ]);
   const myBus = mine?.busId ? (await listBuses(trip.id)).find((b) => b.id === mine.busId)?.name : undefined;
+  const { locale, t } = await getI18n();
 
   return (
     <>
       <PageHeader
         title={trip.title}
-        description={formatDate(trip.date)}
+        description={formatDate(trip.date, locale)}
         actions={
           <div className="flex flex-wrap gap-2">
             {manager && <TripRunButtons trip={trip} />}
             {can(actor, "view_trip_dashboard") && trip.status !== "upcoming" && (
               <Link href={`/dashboard/trips/${trip.id}/dashboard`} className="rounded-lg border border-border bg-surface px-4 py-2.5 text-sm font-semibold">
-                الداشبورد
+                {t("لوحة المتابعة")}
               </Link>
             )}
             {attendance && trip.status !== "upcoming" && (
               <Link href={`/dashboard/trips/${trip.id}/attendance`} className="rounded-lg border border-border bg-surface px-4 py-2.5 text-sm font-semibold">
-                الحضور والتجمعات
+                {t("الحضور والتجمعات")}
               </Link>
             )}
             {manager && (
               <Link href={`/dashboard/trips/${trip.id}/report`} className="rounded-lg border border-border bg-surface px-4 py-2.5 text-sm font-semibold">
-                التقرير
+                {t("التقرير")}
               </Link>
             )}
             {manager && trip.status !== "finished" && (
               <Link href={`/dashboard/trips/${trip.id}/edit`} className="rounded-lg border border-border bg-surface px-4 py-2.5 text-sm font-semibold">
-                تعديل
+                {t("تعديل")}
               </Link>
             )}
             {manager && trip.status === "upcoming" && (
               <form action={deleteTripAction}>
                 <input type="hidden" name="id" value={trip.id} />
-                <ConfirmButton variant="danger" message={`حذف رحلة "${trip.title}" نهائيًا؟`}>
-                  حذف
+                <ConfirmButton variant="danger" message={t("حذف رحلة «{trip}» نهائيًا؟", { trip: trip.title })}>
+                  {t("حذف")}
                 </ConfirmButton>
               </form>
             )}
@@ -83,13 +87,13 @@ export default async function TripPage({ params }: PageProps<"/dashboard/trips/[
         <div className="space-y-4 lg:col-span-2">
           <Card>
             <div className="mb-4 flex items-center gap-2">
-              <Badge tone={STATUS_TONES[trip.status]}>{STATUS_LABELS[trip.status]}</Badge>
+              <Badge tone={STATUS_TONES[trip.status]}>{t(STATUS_LABELS[trip.status])}</Badge>
             </div>
             <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <Info label="التحرك">{formatTime(trip.startTime)}</Info>
-              <Info label="الرجوع">{formatTime(trip.endTime)}</Info>
-              <Info label="المكان">{trip.location}</Info>
-              <Info label="العدد الأقصى">{trip.capacity}</Info>
+              <Info label={t("الانطلاق")}>{formatTime(trip.startTime, locale)}</Info>
+              <Info label={t("العودة")}>{formatTime(trip.endTime, locale)}</Info>
+              <Info label={t("المكان")}>{trip.location}</Info>
+              <Info label={t("الحد الأقصى للعدد")}>{trip.capacity}</Info>
             </dl>
             {trip.description && <p className="mt-4 whitespace-pre-line text-sm leading-7">{trip.description}</p>}
           </Card>
@@ -99,14 +103,14 @@ export default async function TripPage({ params }: PageProps<"/dashboard/trips/[
           <BookingsCard trip={trip} canToggle={manager} />
 
           <Card>
-            <h2 className="mb-3 font-semibold">برنامج الرحلة</h2>
+            <h2 className="mb-3 font-semibold">{t("برنامج الرحلة")}</h2>
             {schedule.length === 0 ? (
-              <p className="text-sm text-muted">مفيش برنامج.</p>
+              <p className="text-sm text-muted">{t("لا يوجد برنامج.")}</p>
             ) : (
               <ol className="space-y-3">
                 {schedule.map((s) => (
                   <li key={s.id} className="flex gap-3">
-                    <span className="w-20 shrink-0 text-sm font-semibold text-primary">{formatTime(s.time) || "•"}</span>
+                    <span className="w-20 shrink-0 text-sm font-semibold text-primary">{formatTime(s.time, locale) || "•"}</span>
                     <div>
                       <div className="font-medium">{s.title}</div>
                       {s.notes && <div className="text-sm text-muted">{s.notes}</div>}
@@ -122,35 +126,34 @@ export default async function TripPage({ params }: PageProps<"/dashboard/trips/[
 
           {manager && trip.status === "finished" && (
             <details className="rounded-xl border border-danger/30 bg-danger/5 p-4">
-              <summary className="cursor-pointer font-semibold text-danger">مسح بيانات الرحلة</summary>
+              <summary className="cursor-pointer font-semibold text-danger">{t("حذف بيانات الرحلة")}</summary>
               <p className="my-3 text-sm">
-                هتتمسح الرحلة وكل الحجوزات والحضور والتجمعات والإعلانات بتاعتها نهائيًا. نزّل التقرير الأول لو محتاجه. الطلبة نفسهم مش
-                هيتمسحوا.
+                {t("ستُحذف الرحلة وكل حجوزاتها وحضورها وتجمعاتها وإعلاناتها نهائيًا. نزِّل التقرير أولًا إذا احتجت إليه. لن يُحذف الطلاب أنفسهم.")}
               </p>
               <PurgeForm
                 action={purgeTripAction}
                 id={trip.id}
                 expected={trip.title}
-                prompt="اكتب اسم الرحلة للتأكيد"
-                confirmMessage={`مسح كل بيانات "${trip.title}" نهائيًا؟ مفيش رجوع.`}
+                prompt={t("اكتب اسم الرحلة للتأكيد")}
+                confirmMessage={t("حذف كل بيانات «{trip}» نهائيًا؟ لا يمكن التراجع.", { trip: trip.title })}
               />
             </details>
           )}
         </div>
 
         <Card className="h-fit">
-          <h2 className="mb-3 font-semibold">إعدادات الرحلة</h2>
+          <h2 className="mb-3 font-semibold">{t("إعدادات الرحلة")}</h2>
           <dl className="space-y-3 text-sm">
-            <Info label="لما العدد يكمل">{trip.whenFull === "close" ? "قفل الفورم" : "قائمة انتظار"}</Info>
+            <Info label={t("عند اكتمال العدد")}>{trip.whenFull === "close" ? t("إغلاق النموذج") : t("قائمة الانتظار")}</Info>
             {trip.whenFull === "waitlist" && (
-              <Info label="ترقية قائمة الانتظار">{trip.waitlistPromotion === "auto" ? "تلقائي" : "يدوي من الأدمن"}</Info>
+              <Info label={t("النقل من قائمة الانتظار")}>{trip.waitlistPromotion === "auto" ? t("تلقائي") : t("يدويًا من المسؤول")}</Info>
             )}
-            <Info label="الاشتراك">{trip.feeEnabled ? `${Number(trip.feeAmount)} جنيه` : "غير مفعّل"}</Info>
-            {trip.feeEnabled && <Info label="شرط الدفع">{trip.paymentRequired ? "التأكيد بعد الدفع" : "مستقل عن الدفع"}</Info>}
-            <Info label="فترة السماح">{trip.lateGraceMinutes ? `${trip.lateGraceMinutes} دقيقة` : "مفيش سماح"}</Info>
-            <Info label="الأتوبيسات">{trip.busesEnabled ? "مفعّلة" : "غير مفعّلة"}</Info>
-            {actor.role === "supervisor" && trip.busesEnabled && <Info label="أتوبيسك">{myBus ?? "لسه متسكّنتش"}</Info>}
-            {trip.busesEnabled && <Info label="نطاق المشرف">{trip.supervisorScope === "bus" ? "أتوبيسه بس" : "الرحلة كلها"}</Info>}
+            <Info label={t("الاشتراك")}>{trip.feeEnabled ? t("{amount} جنيه", { amount: Number(trip.feeAmount) }) : t("غير مفعَّل")}</Info>
+            {trip.feeEnabled && <Info label={t("شرط الدفع")}>{trip.paymentRequired ? t("التأكيد بعد الدفع") : t("مستقل عن الدفع")}</Info>}
+            <Info label={t("فترة السماح")}>{trip.lateGraceMinutes ? t("{n} دقيقة", { n: trip.lateGraceMinutes }) : t("بلا سماح")}</Info>
+            <Info label={t("الحافلات")}>{trip.busesEnabled ? t("مفعَّلة") : t("غير مفعَّلة")}</Info>
+            {actor.role === "supervisor" && trip.busesEnabled && <Info label={t("حافلتك")}>{myBus ?? t("لم تُعيَّن بعد")}</Info>}
+            {trip.busesEnabled && <Info label={t("نطاق المشرف")}>{trip.supervisorScope === "bus" ? t("حافلته فقط") : t("الرحلة كاملة")}</Info>}
           </dl>
         </Card>
       </div>

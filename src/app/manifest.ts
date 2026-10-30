@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "بوابة الأنشطة — جامعة الزقازيق الأهلية",
     short_name: "بوابة الأنشطة",
-    description: "رحلات الجامعة، الحجز، و QR الحضور",
+    description: "رحلات الجامعة والحجز ورمز الحضور",
     lang: "ar",
     dir: "rtl",
     // "/" sends students to their portal and staff to the dashboard.

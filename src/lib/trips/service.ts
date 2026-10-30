@@ -9,7 +9,7 @@ import { can } from "@/lib/authz";
 import { cairoToday, isValidIsoDate } from "@/lib/dates";
 import { ForbiddenError } from "@/lib/errors";
 
-const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "ميعاد غير صحيح");
+const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "موعد غير صحيح");
 const optionalTime = z
   .union([z.literal(""), z.null(), timeSchema])
   .optional()
@@ -24,33 +24,33 @@ const optionalText = (max: number) =>
 
 export const scheduleItemSchema = z.object({
   time: optionalTime,
-  title: z.string().trim().min(1, "اكتب عنوان البند").max(200),
+  title: z.string().trim().min(1, "أدخل عنوان البند").max(200),
   notes: optionalText(1000),
 });
 
 export const tripInputSchema = z
   .object({
-    title: z.string().trim().min(3, "العنوان لازم يكون 3 حروف على الأقل").max(200),
+    title: z.string().trim().min(3, "يجب ألا يقل العنوان عن 3 أحرف").max(200),
     description: optionalText(5000),
     date: z.string().refine(isValidIsoDate, "تاريخ غير صحيح"),
     startTime: optionalTime,
     endTime: optionalTime,
     location: optionalText(255),
-    capacity: z.coerce.number().int("العدد لازم يكون رقم صحيح").min(1, "العدد لازم يكون 1 على الأقل").max(10000),
+    capacity: z.coerce.number().int("يجب أن يكون العدد رقمًا صحيحًا").min(1, "يجب ألا يقل العدد عن 1").max(10000),
     whenFull: z.enum(["close", "waitlist"]),
     waitlistPromotion: z.enum(["auto", "manual"]),
     feeEnabled: z.boolean(),
     feeAmount: z.union([z.literal(""), z.null(), z.coerce.number()]).optional(),
     paymentRequired: z.boolean(),
-    lateGraceMinutes: z.coerce.number().int().min(0, "فترة السماح من 0 لـ 240 دقيقة").max(240, "فترة السماح من 0 لـ 240 دقيقة"),
+    lateGraceMinutes: z.coerce.number().int().min(0, "فترة السماح من 0 إلى 240 دقيقة").max(240, "فترة السماح من 0 إلى 240 دقيقة"),
     busesEnabled: z.boolean(),
     supervisorScope: z.enum(["bus", "all"]),
-    schedule: z.array(scheduleItemSchema).max(50, "أقصى عدد 50 بند"),
+    schedule: z.array(scheduleItemSchema).max(50, "الحد الأقصى 50 بندًا"),
   })
   .superRefine((d, ctx) => {
     if (d.feeEnabled) {
       const amount = typeof d.feeAmount === "number" ? d.feeAmount : NaN;
-      if (!(amount > 0 && amount <= 100000)) ctx.addIssue({ code: "custom", path: ["feeAmount"], message: "اكتب مبلغ الاشتراك" });
+      if (!(amount > 0 && amount <= 100000)) ctx.addIssue({ code: "custom", path: ["feeAmount"], message: "أدخل مبلغ الاشتراك" });
     }
   })
   .transform((d) => ({
@@ -86,7 +86,7 @@ export async function createTrip(actor: SessionUser, input: TripInput, ctx: Requ
   const parsed = tripInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, errors: zodErrors(parsed.error) };
   const { schedule, ...data } = parsed.data;
-  if (data.date < cairoToday()) return { ok: false, errors: { date: "التاريخ ده عدّى" } };
+  if (data.date < cairoToday()) return { ok: false, errors: { date: "هذا التاريخ قد مضى" } };
 
   const id = await db.transaction(async (tx) => {
     const [trip] = await tx
@@ -107,20 +107,20 @@ export async function createTrip(actor: SessionUser, input: TripInput, ctx: Requ
 export async function updateTrip(actor: SessionUser, id: number, input: TripInput, ctx: RequestCtx): Promise<Result> {
   assertCanManage(actor);
   const current = await getTrip(id);
-  if (!current) return { ok: false, errors: { _: "الرحلة مش موجودة" } };
-  if (current.status === "finished") return { ok: false, errors: { _: "الرحلة انتهت ومينفعش تتعدّل" } };
+  if (!current) return { ok: false, errors: { _: "الرحلة غير موجودة" } };
+  if (current.status === "finished") return { ok: false, errors: { _: "انتهت الرحلة ولا يمكن تعديلها" } };
 
   const parsed = tripInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, errors: zodErrors(parsed.error) };
   const { schedule, ...data } = parsed.data;
 
   if (data.date !== current.date) {
-    if (current.status === "ongoing") return { ok: false, errors: { date: "مينفعش تغيّر تاريخ رحلة بدأت" } };
-    if (data.date < cairoToday()) return { ok: false, errors: { date: "التاريخ ده عدّى" } };
+    if (current.status === "ongoing") return { ok: false, errors: { date: "لا يمكن تغيير تاريخ رحلة بدأت" } };
+    if (data.date < cairoToday()) return { ok: false, errors: { date: "هذا التاريخ قد مضى" } };
   }
 
   const held = await heldSeats(id);
-  if (data.capacity < held) return { ok: false, errors: { capacity: `فيه ${held} حجز معلّق أو مؤكد، العدد مينفعش يقل عن كده` } };
+  if (data.capacity < held) return { ok: false, errors: { capacity: `يوجد ${held} حجز معلّق أو مؤكد، ولا يمكن أن يقل العدد عن ذلك` } };
 
   // Postgres returns times as HH:MM:SS while input is HH:MM.
   const norm = (v: unknown) => (v == null ? "" : String(v).replace(/^(\d\d:\d\d):00$/, "$1"));
@@ -143,9 +143,9 @@ export async function updateTrip(actor: SessionUser, id: number, input: TripInpu
 export async function deleteTrip(actor: SessionUser, id: number, ctx: RequestCtx): Promise<Result> {
   assertCanManage(actor);
   const current = await getTrip(id);
-  if (!current) return { ok: false, errors: { _: "الرحلة مش موجودة" } };
-  if (current.status !== "upcoming") return { ok: false, errors: { _: "مينفعش تحذف رحلة بدأت أو انتهت" } };
-  if (await heldSeats(id)) return { ok: false, errors: { _: "الرحلة فيها حجوزات معلّقة أو مؤكدة. الغيها الأول قبل الحذف" } };
+  if (!current) return { ok: false, errors: { _: "الرحلة غير موجودة" } };
+  if (current.status !== "upcoming") return { ok: false, errors: { _: "لا يمكن حذف رحلة بدأت أو انتهت" } };
+  if (await heldSeats(id)) return { ok: false, errors: { _: "في الرحلة حجوزات معلّقة أو مؤكدة. ألغِها قبل الحذف" } };
 
   await db.delete(activities).where(eq(activities.id, id));
   await recordAudit(

@@ -54,7 +54,7 @@ describe("trips", () => {
     if (!bad.ok) expect(Object.keys(bad.errors).sort()).toEqual(["capacity", "date", "lateGraceMinutes", "startTime", "title"]);
 
     const past = await createTrip(admin, tripInput({ date: daysFromToday(-1) }), ctx);
-    expect(past).toEqual({ ok: false, errors: { date: "التاريخ ده عدّى" } });
+    expect(past).toEqual({ ok: false, errors: { date: "هذا التاريخ قد مضى" } });
     expect((await createTrip(admin, tripInput({ date: cairoToday() }), ctx)).ok).toBe(true);
   });
 

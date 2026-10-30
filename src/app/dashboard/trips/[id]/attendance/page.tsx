@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getI18n, getT } from "@/i18n/server";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionButton } from "@/components/action-button";
@@ -23,13 +24,15 @@ import { attendanceAction } from "./actions";
 import { AddCheckpointForm } from "./forms";
 import { TripRunButtons } from "./trip-run";
 
-export const metadata: Metadata = { title: "الحضور" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getT())("الحضور") };
+}
 
 const STATE_LABELS: Record<RowState, string> = {
   present: "حاضر",
   late: "متأخر",
-  absent: "غياب",
-  pending: "مستني التأكيد",
+  absent: "غائب",
+  pending: "بانتظار التأكيد",
   unrecorded: "لم يُسجَّل بعد",
 };
 const STATE_TONES: Record<RowState, "neutral" | "success" | "danger" | "warning"> = {
@@ -76,25 +79,27 @@ export default async function AttendancePage({ params, searchParams }: PageProps
         getSetting("restore_absent_student"),
       ])
     : [[], [], [], [], "denied" as const];
-  const t = tallies(roster);
+  const tl = tallies(roster);
   const sorted = [...roster].sort((a, b) => ORDER.indexOf(a.state) - ORDER.indexOf(b.state));
   const base = { activityId: trip.id };
   const cpOpen = cp ? isOpen(cp) && !(first && locked) : false;
+  const { locale, t } = await getI18n();
+  const clock = (d: Date | null) => formatClock(d, locale);
 
   return (
     <>
       <PageHeader
-        title={`الحضور: ${trip.title}`}
-        description={formatDate(trip.date)}
+        title={t("الحضور: {trip}", { trip: trip.title })}
+        description={formatDate(trip.date, locale)}
         actions={
           <div className="flex flex-wrap gap-2">
             {taker && ongoing && (
               <Link href={`/dashboard/trips/${trip.id}/scan`} className="rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground">
-                Scan QR
+                {t("مسح الرموز")}
               </Link>
             )}
             <Link href={`/dashboard/trips/${trip.id}`} className="rounded-lg border border-border bg-surface px-4 py-2.5 text-sm font-semibold">
-              الرحلة
+              {t("الرحلة")}
             </Link>
           </div>
         }
@@ -104,11 +109,11 @@ export default async function AttendancePage({ params, searchParams }: PageProps
 
       {!cp ? (
         <Card>
-          <p className="text-sm text-muted">الرحلة لسه مبدأتش. التجمع الأول بيتفتح تلقائي مع «بدء الرحلة».</p>
+          <p className="text-sm text-muted">{t("لم تبدأ الرحلة بعد. يُفتح التجمع الأول تلقائيًا عند «بدء الرحلة».")}</p>
         </Card>
       ) : (
         <div className="space-y-4">
-          <nav className="flex gap-2 overflow-x-auto pb-1" aria-label="التجمعات">
+          <nav className="flex gap-2 overflow-x-auto pb-1" aria-label={t("التجمعات")}>
             {cps.map((c) => (
               <Link
                 key={c.id}
@@ -117,7 +122,7 @@ export default async function AttendancePage({ params, searchParams }: PageProps
                 className={`shrink-0 rounded-full border px-3 py-1.5 text-sm ${c.id === cp.id ? "border-primary bg-primary text-primary-foreground" : "border-border bg-surface"}`}
               >
                 {c.name}
-                {isOpen(c) && !(c.sortOrder === 1 && locked) && <span className="ms-1.5 inline-block size-2 rounded-full bg-success" aria-label="مفتوح" />}
+                {isOpen(c) && !(c.sortOrder === 1 && locked) && <span className="ms-1.5 inline-block size-2 rounded-full bg-success" aria-label={t("مفتوح")} />}
               </Link>
             ))}
           </nav>
@@ -127,9 +132,9 @@ export default async function AttendancePage({ params, searchParams }: PageProps
               <div>
                 <h2 className="font-semibold">{cp.name}</h2>
                 <p className="mt-1 text-sm text-muted">
-                  {cp.scheduledAt && <>الميعاد {formatClock(cp.scheduledAt)} · </>}
-                  {trip.lateGraceMinutes ? `سماح ${trip.lateGraceMinutes} دقيقة` : "مفيش سماح"} ·{" "}
-                  {cpOpen ? "مفتوح" : cp.openedAt ? "مقفول" : "لسه متفتحش"}
+                  {cp.scheduledAt && <>{t("الموعد {time}", { time: clock(cp.scheduledAt) })} · </>}
+                  {trip.lateGraceMinutes ? t("سماح {n} دقيقة", { n: trip.lateGraceMinutes }) : t("بلا سماح")} ·{" "}
+                  {cpOpen ? t("مفتوح") : cp.openedAt ? t("مغلق") : t("لم يُفتح بعد")}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -140,34 +145,34 @@ export default async function AttendancePage({ params, searchParams }: PageProps
                     variant={cpOpen ? "secondary" : "primary"}
                     className={small}
                   >
-                    {cpOpen ? "قفل التجمع" : "فتح التجمع"}
+                    {cpOpen ? t("إغلاق التجمع") : t("فتح التجمع")}
                   </ActionButton>
                 )}
-                {admin && t.pending > 0 && (
+                {admin && tl.pending > 0 && (
                   <ActionButton action={attendanceAction} fields={{ ...base, op: "confirm_all", checkpointId: cp.id }} className={small}>
-                    تأكيد الكل ({t.pending})
+                    {t("تأكيد الكل ({n})", { n: tl.pending })}
                   </ActionButton>
                 )}
                 {admin && first && !locked && ongoing && (
                   <>
-                    {t.unrecorded > 0 && (
+                    {tl.unrecorded > 0 && (
                       <ActionButton
                         action={attendanceAction}
                         fields={{ ...base, op: "remaining_absent", checkpointId: cp.id }}
                         variant="secondary"
                         className={small}
-                        confirm={`تعليم ${t.unrecorded} طالب غياب؟`}
+                        confirm={t("تسجيل غياب {n} طالب؟", { n: tl.unrecorded })}
                       >
-                        الباقي غياب
+                        {t("تسجيل غياب الباقين")}
                       </ActionButton>
                     )}
                     <ActionButton
                       action={attendanceAction}
                       fields={{ ...base, op: "lock" }}
                       className={small}
-                      confirm="تأكيد عدد الرحلة؟ الكشف هيتثبت والغياب هيتشال من التجمعات الجاية"
+                      confirm={t("تأكيد عدد الرحلة؟ سيُثبَّت الكشف ويُستبعد الغائبون من التجمعات التالية.")}
                     >
-                      تأكيد عدد الرحلة
+                      {t("تأكيد عدد الرحلة")}
                     </ActionButton>
                   </>
                 )}
@@ -175,23 +180,23 @@ export default async function AttendancePage({ params, searchParams }: PageProps
             </div>
 
             <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-6">
-              <Stat label="الكشف" value={t.total} />
-              <Stat label="حاضر" value={t.present} tone="text-success" />
-              <Stat label="متأخر" value={t.late} tone="text-warning" />
-              <Stat label="مستني التأكيد" value={t.pending} tone="text-warning" />
-              <Stat label={first ? "لم يُسجَّل بعد" : "لم يحضر بعد"} value={t.unrecorded} />
-              {first && <Stat label="غياب" value={t.absent} tone="text-danger" />}
+              <Stat label={t("الكشف")} value={tl.total} />
+              <Stat label={t("حاضر")} value={tl.present} tone="text-success" />
+              <Stat label={t("متأخر")} value={tl.late} tone="text-warning" />
+              <Stat label={t("بانتظار التأكيد")} value={tl.pending} tone="text-warning" />
+              <Stat label={first ? t("لم يُسجَّل بعد") : t("لم يحضر بعد")} value={tl.unrecorded} />
+              {first && <Stat label={t("غائب")} value={tl.absent} tone="text-danger" />}
             </div>
             {first && locked && (
               <p className="mt-3 text-sm font-medium text-success">
-                العدد الفعلي للرحلة: {t.present + t.late} طالب (اتأكد {formatClock(trip.rosterLockedAt)})
+                {t("العدد الفعلي للرحلة: {n} طالب (أُكِّد {time})", { n: tl.present + tl.late, time: clock(trip.rosterLockedAt) })}
               </p>
             )}
           </Card>
 
           <Card className="p-0">
             {sorted.length === 0 ? (
-              <p className="p-5 text-sm text-muted">مفيش طلبة في الكشف.</p>
+              <p className="p-5 text-sm text-muted">{t("لا يوجد طلاب في الكشف.")}</p>
             ) : (
               <ul className="divide-y divide-border">
                 {sorted.map((r) => {
@@ -203,7 +208,7 @@ export default async function AttendancePage({ params, searchParams }: PageProps
                         <div className="font-medium">{r.name}</div>
                         <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-muted">
                           <span>
-                            {r.facultyName} · {YEAR_LABELS[r.year]}
+                            {r.facultyName} · {t(YEAR_LABELS[r.year])}
                           </span>
                           {r.busName && <span>{r.busName}</span>}
                           <a href={`tel:${r.phone}`} className="text-primary" dir="ltr">
@@ -211,16 +216,16 @@ export default async function AttendancePage({ params, searchParams }: PageProps
                           </a>
                           {rec && state !== "absent" && (
                             <span>
-                              {formatClock(rec.recordedAt)} · {rec.method === "qr" ? "QR" : "يدوي"}
+                              {clock(rec.recordedAt)} · {rec.method === "qr" ? "QR" : t("يدوي")}
                             </span>
                           )}
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <Badge tone={STATE_TONES[state]}>{state === "unrecorded" && !first ? "لم يحضر بعد" : STATE_LABELS[state]}</Badge>
+                        <Badge tone={STATE_TONES[state]}>{state === "unrecorded" && !first ? t("لم يحضر بعد") : t(STATE_LABELS[state])}</Badge>
                         {state === "unrecorded" && taker && cpOpen && (
                           <ActionButton action={attendanceAction} fields={{ ...base, op: "present", checkpointId: cp.id, bookingId: r.bookingId }} className={small}>
-                            تحضير
+                            {t("تسجيل الحضور")}
                           </ActionButton>
                         )}
                         {state === "unrecorded" && admin && first && !locked && (
@@ -230,12 +235,12 @@ export default async function AttendancePage({ params, searchParams }: PageProps
                             variant="secondary"
                             className={small}
                           >
-                            غياب
+                            {t("غائب")}
                           </ActionButton>
                         )}
                         {state === "pending" && admin && rec && (
                           <ActionButton action={attendanceAction} fields={{ ...base, op: "confirm", checkpointId: cp.id, recordId: rec.id }} className={small}>
-                            تأكيد
+                            {t("تأكيد")}
                           </ActionButton>
                         )}
                         {rec && admin && !(first && locked) && (
@@ -244,9 +249,9 @@ export default async function AttendancePage({ params, searchParams }: PageProps
                             fields={{ ...base, op: "void", recordId: rec.id }}
                             variant="ghost"
                             className={small}
-                            confirm={`إلغاء تسجيل ${r.name}؟`}
+                            confirm={t("إلغاء تسجيل {name}؟", { name: r.name })}
                           >
-                            إلغاء التسجيل
+                            {t("إلغاء التسجيل")}
                           </ActionButton>
                         )}
                       </div>
@@ -259,12 +264,12 @@ export default async function AttendancePage({ params, searchParams }: PageProps
 
           {rejected.length > 0 && (
             <Card>
-              <h2 className="mb-2 font-semibold text-danger">تسجيلات اترفضت ({rejected.length})</h2>
-              <p className="mb-3 text-xs text-muted">الكود اللي في الـ QR مكانش صحيح وقت الاسكان، أو الحجز كان ملغي.</p>
+              <h2 className="mb-2 font-semibold text-danger">{t("تسجيلات مرفوضة ({n})", { n: rejected.length })}</h2>
+              <p className="mb-3 text-xs text-muted">{t("لم يكن رمز QR صحيحًا وقت المسح، أو كان الحجز ملغى.")}</p>
               <ul className="space-y-1.5 text-sm">
                 {rejected.map((x) => (
                   <li key={x.id}>
-                    {x.name} · {x.reason === "revoked" ? "حجز ملغي" : "QR منتهي أو مش صحيح"} · {formatClock(x.recordedAt)}
+                    {x.name} · {x.reason === "revoked" ? t("حجز ملغى") : t("رمز QR منتهي أو غير صحيح")} · {clock(x.recordedAt)}
                     {x.recorder && <span className="text-muted"> · {x.recorder}</span>}
                   </li>
                 ))}
@@ -274,7 +279,7 @@ export default async function AttendancePage({ params, searchParams }: PageProps
 
           {locked && absentees.length > 0 && (
             <Card>
-              <h2 className="mb-3 font-semibold">غياب نهائي ({absentees.length})</h2>
+              <h2 className="mb-3 font-semibold">{t("غياب نهائي ({n})", { n: absentees.length })}</h2>
               <ul className="divide-y divide-border">
                 {absentees.map((a) => (
                   <li key={a.bookingId} className="flex items-center justify-between gap-3 py-2">
@@ -285,9 +290,9 @@ export default async function AttendancePage({ params, searchParams }: PageProps
                         fields={{ ...base, op: "restore", bookingId: a.bookingId }}
                         variant="secondary"
                         className={small}
-                        confirm={`إرجاع ${a.name} للرحلة؟ هيظهر في التجمعات الجاية`}
+                        confirm={t("إعادة {name} إلى الرحلة؟ سيظهر في التجمعات التالية.", { name: a.name })}
                       >
-                        إرجاع للرحلة
+                        {t("إعادة إلى الرحلة")}
                       </ActionButton>
                     )}
                   </li>
@@ -298,16 +303,16 @@ export default async function AttendancePage({ params, searchParams }: PageProps
 
           {gatherer && ongoing && locked && (
             <Card>
-              <h2 className="mb-3 font-semibold">تجمع جديد</h2>
+              <h2 className="mb-3 font-semibold">{t("تجمع جديد")}</h2>
               <AddCheckpointForm activityId={trip.id} />
             </Card>
           )}
 
           {admin && (
             <Card>
-              <h2 className="mb-3 font-semibold">حضور المشرفين</h2>
+              <h2 className="mb-3 font-semibold">{t("حضور المشرفين")}</h2>
               {supervisors.length === 0 ? (
-                <p className="text-sm text-muted">مفيش مشرفين على الرحلة.</p>
+                <p className="text-sm text-muted">{t("لا يوجد مشرفون على الرحلة.")}</p>
               ) : (
                 <ul className="divide-y divide-border">
                   {supervisors.map((s) => (
@@ -320,16 +325,16 @@ export default async function AttendancePage({ params, searchParams }: PageProps
                         {s.recordedAt ? (
                           <>
                             <Badge tone="success">
-                              حاضر {formatClock(s.recordedAt)} · {s.method === "qr" ? "QR" : "يدوي"}
+                              {t("حاضر {time}", { time: clock(s.recordedAt) })} · {s.method === "qr" ? "QR" : t("يدوي")}
                             </Badge>
                             <ActionButton action={attendanceAction} fields={{ ...base, op: "staff_remove", userId: s.userId }} variant="ghost" className={small}>
-                              إلغاء
+                              {t("إلغاء")}
                             </ActionButton>
                           </>
                         ) : (
                           ongoing && (
                             <ActionButton action={attendanceAction} fields={{ ...base, op: "staff_present", userId: s.userId }} className={small}>
-                              تحضير
+                              {t("تسجيل الحضور")}
                             </ActionButton>
                           )
                         )}

@@ -4,6 +4,7 @@ import { can } from "@/lib/authz";
 import { tripReport } from "@/lib/reports/service";
 import { reportWorkbook } from "@/lib/reports/xlsx";
 import { getTrip } from "@/lib/trips/service";
+import { getLocale } from "@/i18n/server";
 
 /** The trip report as an Excel file (admins only); every download is audited. */
 export async function GET(_req: Request, ctx: RouteContext<"/dashboard/trips/[id]/report/xlsx">) {
@@ -13,7 +14,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/dashboard/trips/[id
   const trip = Number.isInteger(id) ? await getTrip(id) : null;
   if (!trip || !can(actor, "manage_activities")) return new Response("not found", { status: 404 });
 
-  const body = await reportWorkbook(await tripReport(actor, trip));
+  const body = await reportWorkbook(await tripReport(actor, trip, await getLocale()));
   await recordAudit(
     { actor: { type: "user", id: actor.id }, action: "report.exported", subjectType: "activity", subjectId: trip.id, meta: { format: "xlsx" } },
     await getRequestCtx(),

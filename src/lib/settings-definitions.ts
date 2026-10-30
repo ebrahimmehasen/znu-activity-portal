@@ -1,34 +1,34 @@
 /** General system settings (plan §8.5). Values are stored as JSON in the `settings` table. */
 export const SETTINGS = {
   duplicate_national_id_policy: {
-    label: "حجز جديد برقم قومي موجود ببيانات مختلفة",
+    label: "حجز جديد برقم قومي مسجَّل ببيانات مختلفة",
     options: {
-      update: "تحديث بالبيانات الجديدة",
+      update: "التحديث بالبيانات الجديدة",
       keep: "الاحتفاظ بالبيانات القديمة",
-      flag: "الحجز يدخل بعلامة \"بيانات مختلفة\" والأدمن يختار",
+      flag: "يُسجَّل الحجز بعلامة «بيانات مختلفة» ويختار المسؤول",
     },
     default: "flag",
   },
   student_login_non_confirmed: {
-    label: "دخول الطالب اللي حجزه معلّق أو ملغي",
+    label: "دخول الطالب الذي حجزه معلّق أو ملغى",
     options: {
-      allowed: "مسموح (يشوف حالة حجزه بس)",
-      denied: "ممنوع (المؤكدين بس)",
+      allowed: "مسموح (يرى حالة حجزه فقط)",
+      denied: "ممنوع (للحجوزات المؤكدة فقط)",
     },
     default: "allowed",
   },
   supervisor_trip_visibility: {
-    label: "الرحلات اللي يشوفها المشرف",
+    label: "الرحلات التي يراها المشرف",
     options: {
       all: "كل الرحلات",
-      assigned: "الرحلات المضاف عليها بس",
+      assigned: "الرحلات المضاف إليها فقط",
     },
     default: "assigned",
   },
   restore_absent_student: {
-    label: "إرجاع طالب متعلّم غياب نهائي",
+    label: "إعادة طالب مسجَّل غيابه نهائيًا",
     options: {
-      allowed: "مسموح للأدمن (يرجع الكشف ويظهر في التجمعات الجاية)",
+      allowed: "مسموح للمسؤول (يعود إلى الكشف ويظهر في التجمعات التالية)",
       denied: "ممنوع",
     },
     default: "allowed",

@@ -23,5 +23,5 @@ export async function purgeStudentAction(_prev: FormState, fd: FormData): Promis
   const r = await purgeStudent(actor, idSchema.parse(fd.get("id")), typed(fd), await getRequestCtx());
   if (!r.ok) return { ok: false, message: r.error };
   revalidatePath("/dashboard/students");
-  return { ok: true, message: "بيانات الطالب اتمسحت" };
+  return { ok: true, message: "حُذفت بيانات الطالب" };
 }

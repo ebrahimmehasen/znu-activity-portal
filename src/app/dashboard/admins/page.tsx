@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getT } from "@/i18n/server";
 import { ConfirmButton } from "@/components/confirm-button";
 import { Badge, Button, Card, PageHeader } from "@/components/ui";
 import { listAdmins } from "@/lib/admins/service";
@@ -7,18 +8,21 @@ import { ROLE_LABELS } from "@/lib/authz";
 import { deleteAdminAction, toggleAdminAction } from "./actions";
 import { CreateAdminForm, ResetPasswordForm } from "./forms";
 
-export const metadata: Metadata = { title: "الأدمنز" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getT())("المسؤولون") };
+}
 
 export default async function AdminsPage() {
   const me = await requireAbility("manage_admins");
   const admins = await listAdmins();
+  const t = await getT();
 
   return (
     <>
-      <PageHeader title="الأدمنز" description="الأدمنز ليهم كل الصلاحيات ما عدا إدارة الأدمنز والإعدادات العامة." />
+      <PageHeader title={t("المسؤولون")} description={t("للمسؤولين كل الصلاحيات عدا إدارة المسؤولين والإعدادات العامة.")} />
 
       <Card className="mb-6">
-        <h2 className="mb-4 font-semibold">إضافة أدمن</h2>
+        <h2 className="mb-4 font-semibold">{t("إضافة مسؤول")}</h2>
         <CreateAdminForm />
       </Card>
 
@@ -33,8 +37,8 @@ export default async function AdminsPage() {
                   <div className="ltr-nums text-sm text-muted">{a.username}</div>
                 </div>
                 <div className="flex gap-2">
-                  <Badge>{ROLE_LABELS[a.role]}</Badge>
-                  {a.isActive ? <Badge tone="success">نشط</Badge> : <Badge tone="danger">مجمّد</Badge>}
+                  <Badge>{t(ROLE_LABELS[a.role])}</Badge>
+                  {a.isActive ? <Badge tone="success">{t("نشط")}</Badge> : <Badge tone="danger">{t("مجمَّد")}</Badge>}
                 </div>
               </div>
 
@@ -44,21 +48,21 @@ export default async function AdminsPage() {
                     <input type="hidden" name="id" value={a.id} />
                     <input type="hidden" name="active" value={a.isActive ? "0" : "1"} />
                     {a.isActive ? (
-                      <ConfirmButton variant="secondary" message={`تجميد ${a.name}؟ هيتعمله خروج فورًا.`}>
-                        تجميد
+                      <ConfirmButton variant="secondary" message={t("تجميد {name}؟ سيُسجَّل خروجه فورًا.", { name: a.name })}>
+                        {t("تجميد")}
                       </ConfirmButton>
                     ) : (
-                      <Button variant="secondary">إلغاء التجميد</Button>
+                      <Button variant="secondary">{t("إلغاء التجميد")}</Button>
                     )}
                   </form>
                   <form action={deleteAdminAction}>
                     <input type="hidden" name="id" value={a.id} />
-                    <ConfirmButton variant="danger" message={`حذف ${a.name}؟`}>
-                      حذف
+                    <ConfirmButton variant="danger" message={t("حذف {name}؟", { name: a.name })}>
+                      {t("حذف")}
                     </ConfirmButton>
                   </form>
                   <details className="min-w-60 flex-1">
-                    <summary className="cursor-pointer py-2 text-sm text-primary">تغيير الباسورد</summary>
+                    <summary className="cursor-pointer py-2 text-sm text-primary">{t("تغيير كلمة المرور")}</summary>
                     <div className="pt-2">
                       <ResetPasswordForm id={a.id} />
                     </div>

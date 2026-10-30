@@ -81,7 +81,7 @@ describe("buses", () => {
       const [bus] = await listBuses(tripId);
       const [b1, b2] = await confirmedStudents(2);
       expect((await assignBus(admin, b1.id, bus.id, ctx)).ok).toBe(true);
-      expect(await assignBus(admin, b2.id, bus.id, ctx)).toEqual({ ok: false, error: "A مليان" });
+      expect(await assignBus(admin, b2.id, bus.id, ctx)).toEqual({ ok: false, error: "A ممتلئة" });
       expect((await assignBus(admin, b1.id, null, ctx)).ok).toBe(true);
       expect((await assignBus(admin, b2.id, bus.id, ctx)).ok).toBe(true);
     });

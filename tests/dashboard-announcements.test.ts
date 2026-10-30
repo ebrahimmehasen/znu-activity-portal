@@ -124,7 +124,7 @@ describe("trip dashboard", () => {
 describe("announcements", () => {
   it("validates, records the sender as reader and audits", async () => {
     const id = await newTrip();
-    expect(await sendAnnouncement(admin, id, { audience: "all", body: "   " }, ctx)).toEqual({ ok: false, error: "اكتب نص الإعلان" });
+    expect(await sendAnnouncement(admin, id, { audience: "all", body: "   " }, ctx)).toEqual({ ok: false, error: "أدخل نص الإعلان" });
     expect((await sendAnnouncement(admin, id, { audience: "everyone", body: "x" }, ctx)).ok).toBe(false);
     const r = await sendAnnouncement(admin, id, { audience: "all", body: "التحرك الساعة 7" }, ctx);
     expect(r.ok).toBe(true);

@@ -4,6 +4,8 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { cairoToday, formatDate } from "@/lib/dates";
 import type { OfflineQr } from "@/lib/students/auth";
 import { STUDENT_QR_KEY, clearStored, fetchQrData, readStored, warmOffline, writeStored, type Stored } from "./offline-store";
+import { useLocale, useT } from "@/i18n/client";
+import { intlLocale } from "@/i18n/config";
 import { TotpQr } from "./totp-qr";
 
 export type StudentQrData = { name: string; bookings: OfflineQr[] };
@@ -45,25 +47,26 @@ function useStudentQr() {
 
 /** Banner on the portal home: is the QR ready for offline use? */
 export function QrReadiness() {
+  const t = useT();
   const { stored, state } = useStudentQr();
   const count = stored?.data.bookings.length ?? 0;
 
   return (
     <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm">
-      <p className="font-semibold text-primary">افتح البورتل مرة والنت شغال قبل يوم الرحلة</p>
+      <p className="font-semibold text-primary">{t("افتح البوابة مرة وأنت متصل بالإنترنت قبل يوم الرحلة")}</p>
       <p className="mt-1 text-muted">
         {state === "syncing"
-          ? "بنجهّز الـ QR على موبايلك…"
+          ? t("جارٍ تجهيز الرمز على هاتفك…")
           : count > 0
-            ? `الـ QR جاهز يشتغل من غير نت لـ ${count === 1 ? "رحلة واحدة" : `${count} رحلات`} ✓`
+            ? `${count === 1 ? t("الرمز جاهز للعمل دون إنترنت لرحلة واحدة") : t("الرمز جاهز للعمل دون إنترنت لـ {n} رحلات", { n: count })} ✓`
             : state === "offline"
-              ? "مفيش نت دلوقتي، ومفيش QR محفوظ على الموبايل ده."
-              : "الـ QR بيتجهز لما حجزك يتأكد."}
+              ? t("لا يوجد اتصال الآن، ولا يوجد رمز محفوظ على هذا الهاتف.")
+              : t("يُجهَّز الرمز عند تأكيد حجزك.")}
       </p>
       {count > 0 && (
         // A full page load, so it also opens from the offline cache.
         <a href="/portal/qr" className="mt-3 inline-flex rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground">
-          QR الحضور
+          {t("رمز الحضور")}
         </a>
       )}
     </div>
@@ -72,14 +75,16 @@ export function QrReadiness() {
 
 /** The QR page: shows the code for today's / the running trip, from the saved copy. */
 export function StudentQrScreen() {
+  const t = useT();
+  const locale = useLocale();
   const { mounted, stored, state } = useStudentQr();
-  if (!mounted || (state === "syncing" && !stored)) return <p className="py-10 text-center text-muted">جاري التحميل…</p>;
+  if (!mounted || (state === "syncing" && !stored)) return <p className="py-10 text-center text-muted">{t("جارٍ التحميل…")}</p>;
   if (state === "signed-out") {
     return (
       <p className="py-10 text-center">
-        انتهت الجلسة.{" "}
+        {t("انتهت الجلسة.")}{" "}
         <a href="/portal/login" className="text-primary">
-          ادخل تاني
+          {t("سجِّل الدخول مجددًا")}
         </a>
       </p>
     );
@@ -94,23 +99,23 @@ export function StudentQrScreen() {
     <div className="space-y-4">
       {state === "offline" && (
         <p className="rounded-lg bg-warning/10 px-3 py-2 text-center text-sm text-warning">
-          انت أوفلاين · آخر تحديث {new Date(stored?.savedAt ?? 0).toLocaleString("ar-EG")}
+          {t("أنت غير متصل · آخر تحديث")} {new Date(stored?.savedAt ?? 0).toLocaleString(intlLocale(locale))}
         </p>
       )}
 
       {active.length === 0 ? (
         <div className="space-y-3 py-6 text-center">
-          <p className="font-semibold">الـ QR بيظهر يوم الرحلة لما تبدأ.</p>
+          <p className="font-semibold">{t("يظهر الرمز يوم الرحلة عند بدئها.")}</p>
           {bookings.length > 0 ? (
             <ul className="space-y-1 text-sm text-muted">
               {bookings.map((b) => (
                 <li key={b.bookingId}>
-                  {b.title} — {formatDate(b.date)} · جاهز أوفلاين ✓
+                  {b.title} — {formatDate(b.date, locale)} · {t("جاهز دون إنترنت")} ✓
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-muted">مفيش حجز متأكد محفوظ على الموبايل ده.</p>
+            <p className="text-sm text-muted">{t("لا يوجد حجز مؤكد محفوظ على هذا الهاتف.")}</p>
           )}
         </div>
       ) : (

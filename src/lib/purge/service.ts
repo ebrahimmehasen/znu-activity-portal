@@ -15,8 +15,9 @@ import { toLatinDigits } from "@/lib/students/validation";
 
 type Result = { ok: true } | { ok: false; error: string };
 
-/** What the admin types to confirm wiping a student. */
-export const STUDENT_PURGE_WORD = "مسح";
+/** What the admin types to confirm wiping a student, per interface language. */
+export const STUDENT_PURGE_WORDS = { ar: "حذف", en: "DELETE" } as const;
+export const STUDENT_PURGE_WORD = STUDENT_PURGE_WORDS.ar;
 
 function assertAdmin(actor: SessionUser) {
   if (!can(actor, "manage_activities")) throw new ForbiddenError();
@@ -26,9 +27,9 @@ function assertAdmin(actor: SessionUser) {
 export async function purgeTrip(actor: SessionUser, id: number, typedTitle: string, ctx: RequestCtx): Promise<Result> {
   assertAdmin(actor);
   const [trip] = await db.select().from(activities).where(eq(activities.id, id));
-  if (!trip) return { ok: false, error: "الرحلة مش موجودة" };
-  if (trip.status !== "finished") return { ok: false, error: "المسح للرحلات المنتهية بس" };
-  if (typedTitle.trim() !== trip.title.trim()) return { ok: false, error: "اكتب اسم الرحلة زي ما هو بالظبط عشان تأكد المسح" };
+  if (!trip) return { ok: false, error: "الرحلة غير موجودة" };
+  if (trip.status !== "finished") return { ok: false, error: "الحذف للرحلات المنتهية فقط" };
+  if (typedTitle.trim() !== trip.title.trim()) return { ok: false, error: "اكتب اسم الرحلة كما هو تمامًا لتأكيد الحذف" };
 
   const [{ n }] = await db.select({ n: count() }).from(bookings).where(eq(bookings.activityId, id));
   await db.delete(activities).where(eq(activities.id, id));
@@ -70,16 +71,16 @@ export async function searchStudents(actor: SessionUser, raw: string) {
  */
 export async function purgeStudent(actor: SessionUser, id: number, typed: string, ctx: RequestCtx): Promise<Result> {
   assertAdmin(actor);
-  if (typed.trim() !== STUDENT_PURGE_WORD) return { ok: false, error: `اكتب "${STUDENT_PURGE_WORD}" عشان تأكد المسح` };
+  if (!(Object.values(STUDENT_PURGE_WORDS) as string[]).includes(typed.trim())) return { ok: false, error: `اكتب «${STUDENT_PURGE_WORD}» لتأكيد الحذف` };
   const [student] = await db.select({ id: students.id }).from(students).where(eq(students.id, id));
-  if (!student) return { ok: false, error: "الطالب مش موجود" };
+  if (!student) return { ok: false, error: "الطالب غير موجود" };
 
   const [{ live }] = await db
     .select({ live: count() })
     .from(bookings)
     .innerJoin(activities, eq(activities.id, bookings.activityId))
     .where(and(eq(bookings.studentId, id), ne(activities.status, "finished"), inArray(bookings.status, ["pending", "confirmed", "waitlisted"])));
-  if (live > 0) return { ok: false, error: "الطالب عنده حجز في رحلة لسه مخلصتش. الغي الحجز الأول" };
+  if (live > 0) return { ok: false, error: "للطالب حجز في رحلة لم تنتهِ بعد. ألغِ الحجز أولًا" };
 
   const removed = await db.transaction(async (tx) => {
     const gone = await tx.delete(bookings).where(eq(bookings.studentId, id)).returning({ id: bookings.id });

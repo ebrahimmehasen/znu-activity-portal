@@ -1,38 +1,41 @@
 import ExcelJS from "exceljs";
+import { makeT } from "@/i18n/translate";
 import type { TripReport } from "./service";
 
 const HEADER_FILL: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE6F0EC" } };
 
-/** Two right-to-left sheets: the summary, then the roster with one column per gathering. */
+/** Two sheets (right-to-left in Arabic): the summary, then the roster with one column per gathering. */
 export async function reportWorkbook(r: TripReport): Promise<Buffer> {
+  const t = makeT(r.locale);
+  const rightToLeft = r.locale === "ar";
   const wb = new ExcelJS.Workbook();
   wb.creator = "ZNU Activity Portal";
   wb.created = new Date();
 
-  const summary = wb.addWorksheet("الملخص", { views: [{ rightToLeft: true }] });
+  const summary = wb.addWorksheet(t("الملخص"), { views: [{ rightToLeft }] });
   summary.columns = [{ width: 22 }, { width: 40 }];
   for (const [label, value] of r.summary) summary.addRow([label, value]).getCell(1).font = { bold: true };
   if (r.checkpoints.length) {
     summary.addRow([]);
-    const head = summary.addRow(["التجمع", "حاضر", "متأخر", "مستني التأكيد", "لم يحضر", "غياب", "الكشف"]);
+    const head = summary.addRow([t("التجمع"), t("حاضر"), t("متأخر"), t("بانتظار التأكيد"), t("لم يحضر"), t("غائب"), t("الكشف")]);
     head.font = { bold: true };
     head.eachCell((c) => (c.fill = HEADER_FILL));
     summary.getColumn(3).width = 10;
     for (const cp of r.checkpoints) {
-      const t = cp.tally;
-      summary.addRow([cp.time ? `${cp.name} (${cp.time})` : cp.name, t.present, t.late, t.pending, t.unrecorded, cp.first ? t.absent : "", t.total]);
+      const tl = cp.tally;
+      summary.addRow([cp.time ? `${cp.name} (${cp.time})` : cp.name, tl.present, tl.late, tl.pending, tl.unrecorded, cp.first ? tl.absent : "", tl.total]);
     }
   }
 
-  const roster = wb.addWorksheet("الكشف", { views: [{ rightToLeft: true, state: "frozen", ySplit: 1 }] });
+  const roster = wb.addWorksheet(t("الكشف"), { views: [{ rightToLeft, state: "frozen", ySplit: 1 }] });
   const columns: Partial<ExcelJS.Column>[] = [
     { header: "#", width: 5 },
-    { header: "الاسم", width: 30 },
-    { header: "الكلية", width: 28 },
-    { header: "الفرقة", width: 14 },
-    { header: "الهاتف", width: 14 },
-    ...(r.showBus ? [{ header: "الأتوبيس", width: 14 }] : []),
-    ...(r.showPaid ? [{ header: "الدفع", width: 10 }] : []),
+    { header: t("الاسم"), width: 30 },
+    { header: t("الكلية"), width: 28 },
+    { header: t("الفرقة"), width: 14 },
+    { header: t("الهاتف"), width: 14 },
+    ...(r.showBus ? [{ header: t("الحافلة"), width: 14 }] : []),
+    ...(r.showPaid ? [{ header: t("الدفع"), width: 10 }] : []),
     ...r.checkpoints.map((cp) => ({ header: cp.name, width: 18 })),
   ];
   roster.columns = columns;

@@ -2,13 +2,13 @@ import type { ActivityStatus } from "@/db/schema";
 
 export const STATUS_LABELS: Record<ActivityStatus, string> = {
   upcoming: "قادمة",
-  ongoing: "حالية",
-  finished: "انتهت",
+  ongoing: "جارية",
+  finished: "منتهية",
 };
 
 export const STATUS_LIST_LABELS: Record<ActivityStatus, string> = {
   upcoming: "القادمة",
-  ongoing: "الحالية",
+  ongoing: "الجارية",
   finished: "المنتهية",
 };
 

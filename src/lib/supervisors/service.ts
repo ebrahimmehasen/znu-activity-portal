@@ -12,7 +12,7 @@ import { hashPassword, passwordSchema } from "@/lib/password";
 const permissionsSchema = z.array(z.enum(SUPERVISOR_PERMISSION_KEYS as [SupervisorPermission, ...SupervisorPermission[]])).transform((p) => [...new Set(p)]);
 
 export const createSupervisorSchema = z.object({
-  name: z.string().trim().min(2, "اكتب الاسم").max(150),
+  name: z.string().trim().min(2, "أدخل الاسم").max(150),
   username: usernameSchema,
   password: passwordSchema,
   permissions: permissionsSchema.default([]),
@@ -59,7 +59,7 @@ export async function createSupervisor(
 ): Promise<Result & { id?: number }> {
   assertCanManage(actor);
   const data = createSupervisorSchema.parse(input);
-  if (await findActiveUserByUsername(data.username)) return { ok: false, error: "اليوزر ده مستخدم قبل كده" };
+  if (await findActiveUserByUsername(data.username)) return { ok: false, error: "اسم المستخدم هذا مستخدَم بالفعل" };
 
   const id = await db.transaction(async (tx) => {
     const [created] = await tx
@@ -93,7 +93,7 @@ async function findSupervisor(id: number) {
 export async function setSupervisorActive(actor: SessionUser, id: number, active: boolean, ctx: RequestCtx): Promise<Result> {
   assertCanManage(actor);
   const target = await findSupervisor(id);
-  if (!target) return { ok: false, error: "الحساب مش موجود" };
+  if (!target) return { ok: false, error: "الحساب غير موجود" };
 
   await db.update(users).set({ isActive: active }).where(eq(users.id, id));
   // Freezing ends every open session at once (plan §5.4).
@@ -105,7 +105,7 @@ export async function setSupervisorActive(actor: SessionUser, id: number, active
 export async function deleteSupervisor(actor: SessionUser, id: number, ctx: RequestCtx): Promise<Result> {
   assertCanManage(actor);
   const target = await findSupervisor(id);
-  if (!target) return { ok: false, error: "الحساب مش موجود" };
+  if (!target) return { ok: false, error: "الحساب غير موجود" };
 
   await db.transaction(async (tx) => {
     await tx.update(users).set({ deletedAt: new Date(), isActive: false, qrSecret: null }).where(eq(users.id, id));
@@ -121,7 +121,7 @@ export async function resetSupervisorPassword(actor: SessionUser, id: number, pa
   const parsed = passwordSchema.safeParse(password);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
   const target = await findSupervisor(id);
-  if (!target) return { ok: false, error: "الحساب مش موجود" };
+  if (!target) return { ok: false, error: "الحساب غير موجود" };
 
   await db.update(users).set({ passwordHash: await hashPassword(parsed.data) }).where(eq(users.id, id));
   await deleteUserSessions(id);
@@ -138,9 +138,9 @@ export async function setSupervisorPermissions(
 ): Promise<Result> {
   assertCanManage(actor);
   const parsed = permissionsSchema.safeParse(permissions);
-  if (!parsed.success) return { ok: false, error: "صلاحية مش معروفة" };
+  if (!parsed.success) return { ok: false, error: "صلاحية غير معروفة" };
   const target = await findSupervisor(id);
-  if (!target) return { ok: false, error: "الحساب مش موجود" };
+  if (!target) return { ok: false, error: "الحساب غير موجود" };
 
   const before = await db.transaction(async (tx) => {
     const old = await tx.select({ p: userPermissions.permission }).from(userPermissions).where(eq(userPermissions.userId, id));

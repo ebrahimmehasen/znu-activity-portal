@@ -26,7 +26,7 @@ export async function updateBusAction(_prev: FormState, formData: FormData): Pro
   const r = await updateBus(actor, idSchema.parse(formData.get("id")), busInput(formData), await getRequestCtx());
   if (!r.ok) return { ok: false, message: r.error };
   revalidatePath(`/dashboard/trips/${idSchema.parse(formData.get("activityId"))}`);
-  return { ok: true, message: "اتحفظ" };
+  return { ok: true, message: "تم الحفظ" };
 }
 
 export async function deleteBusAction(formData: FormData) {

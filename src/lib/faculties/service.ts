@@ -7,7 +7,7 @@ import type { SessionUser } from "@/lib/auth/service";
 import { can } from "@/lib/authz";
 import { ForbiddenError } from "@/lib/errors";
 
-export const facultyNameSchema = z.string().trim().min(2, "اكتب اسم الكلية").max(150);
+export const facultyNameSchema = z.string().trim().min(2, "أدخل اسم الكلية").max(150);
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -35,7 +35,7 @@ export async function createFaculty(actor: SessionUser, rawName: string, ctx: Re
   assertCanManage(actor);
   const parsed = facultyNameSchema.safeParse(rawName);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
-  if (await nameTaken(parsed.data)) return { ok: false, error: "الكلية دي موجودة" };
+  if (await nameTaken(parsed.data)) return { ok: false, error: "هذه الكلية موجودة بالفعل" };
 
   const [{ last }] = await db.select({ last: max(faculties.sortOrder) }).from(faculties);
   const [created] = await db
@@ -58,13 +58,13 @@ export async function updateFaculty(
 ): Promise<Result> {
   assertCanManage(actor);
   const [current] = await db.select().from(faculties).where(eq(faculties.id, id));
-  if (!current) return { ok: false, error: "الكلية مش موجودة" };
+  if (!current) return { ok: false, error: "الكلية غير موجودة" };
 
   const values: { name?: string; isActive?: boolean } = {};
   if (patch.name !== undefined) {
     const parsed = facultyNameSchema.safeParse(patch.name);
     if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
-    if (await nameTaken(parsed.data, id)) return { ok: false, error: "الكلية دي موجودة" };
+    if (await nameTaken(parsed.data, id)) return { ok: false, error: "هذه الكلية موجودة بالفعل" };
     if (parsed.data !== current.name) values.name = parsed.data;
   }
   if (patch.isActive !== undefined && patch.isActive !== current.isActive) values.isActive = patch.isActive;

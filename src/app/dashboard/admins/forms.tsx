@@ -3,8 +3,10 @@
 import { useActionState, useEffect, useRef } from "react";
 import { Alert, Button, Field, Input } from "@/components/ui";
 import { createAdminAction, resetPasswordAction } from "./actions";
+import { useT } from "@/i18n/client";
 
 export function CreateAdminForm() {
+  const t = useT();
   const [state, action, pending] = useActionState(createAdminAction, {});
   const ref = useRef<HTMLFormElement>(null);
   useEffect(() => {
@@ -18,18 +20,18 @@ export function CreateAdminForm() {
           <Alert tone="success">{state.message}</Alert>
         </div>
       )}
-      <Field label="الاسم" error={state.errors?.name}>
+      <Field label={t("الاسم")} error={state.errors?.name}>
         <Input name="name" required maxLength={150} />
       </Field>
-      <Field label="اسم المستخدم" error={state.errors?.username}>
+      <Field label={t("اسم المستخدم")} error={state.errors?.username}>
         <Input name="username" required maxLength={50} dir="ltr" autoComplete="off" />
       </Field>
-      <Field label="الباسورد" error={state.errors?.password}>
+      <Field label={t("كلمة المرور")} error={state.errors?.password}>
         <Input name="password" type="password" required minLength={8} dir="ltr" autoComplete="new-password" />
       </Field>
       <div className="sm:col-span-3">
         <Button type="submit" disabled={pending}>
-          إضافة أدمن
+          {t("إضافة مسؤول")}
         </Button>
       </div>
     </form>
@@ -37,14 +39,15 @@ export function CreateAdminForm() {
 }
 
 export function ResetPasswordForm({ id }: { id: number }) {
+  const t = useT();
   const [state, action, pending] = useActionState(resetPasswordAction, {});
   return (
     <form action={action} className="space-y-2">
       <input type="hidden" name="id" value={id} />
       <div className="flex gap-2">
-        <Input name="password" type="password" required minLength={8} placeholder="باسورد جديد" dir="ltr" autoComplete="new-password" />
+        <Input name="password" type="password" required minLength={8} placeholder={t("كلمة مرور جديدة")} dir="ltr" autoComplete="new-password" />
         <Button type="submit" variant="secondary" disabled={pending}>
-          حفظ
+          {t("حفظ")}
         </Button>
       </div>
       {state.message && <Alert tone={state.ok ? "success" : "danger"}>{state.message}</Alert>}

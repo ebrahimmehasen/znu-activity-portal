@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { useT } from "@/i18n/client";
 
 const POLL_MS = 20_000;
 /** Fired by pages after marking announcements read, so the badge updates at once. */
@@ -13,6 +14,7 @@ export const ANNOUNCEMENTS_READ_EVENT = "znu:announcements-read";
  * so they show up without a reload. Network errors (offline) keep the last count.
  */
 export function UnreadBadge({ endpoint, initial, refreshUnder }: { endpoint: string; initial: number; refreshUnder?: string }) {
+  const t = useT();
   const [count, setCount] = useState(initial);
   const last = useRef(initial);
   const router = useRouter();
@@ -58,7 +60,7 @@ export function UnreadBadge({ endpoint, initial, refreshUnder }: { endpoint: str
 
   if (count <= 0) return null;
   return (
-    <span className="ms-1.5 inline-flex min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-xs font-bold text-white" aria-label={`${count} غير مقروء`}>
+    <span className="ms-1.5 inline-flex min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-xs font-bold text-surface" aria-label={t("{n} غير مقروء", { n: count })}>
       {count > 99 ? "99+" : count}
     </span>
   );

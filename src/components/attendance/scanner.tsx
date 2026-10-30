@@ -3,6 +3,8 @@
 import jsQR from "jsqr";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge, Button, Input } from "@/components/ui";
+import { useLocale, useT } from "@/i18n/client";
+import { intlLocale } from "@/i18n/config";
 import type { ScanPack, SyncOutcome } from "@/lib/attendance/service";
 import { parseQrPayload } from "@/lib/qr/totp";
 import { fetchQrData, readStored, warmOffline, writeStored } from "@/components/qr/offline-store";
@@ -40,6 +42,8 @@ const bannerCls: Record<Tone, string> = {
 const standing = (r: QueuedRecord) => r.state === "queued" || r.state === "recorded" || r.state === "pending" || r.state === "duplicate";
 
 export function Scanner({ tripId }: { tripId: number }) {
+  const t = useT();
+  const locale = useLocale();
   const [pack, setPack] = useState<ScanPack | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [records, setRecords] = useState<QueuedRecord[]>([]);
@@ -141,34 +145,34 @@ export function Scanner({ tripId }: { tripId: number }) {
     Boolean(cp && (pack?.recorded[cp.id]?.includes(bookingId) || records.some((r) => r.payload.kind === "student" && r.payload.checkpointId === cp.id && r.payload.bookingId === bookingId && standing(r))));
 
   async function enqueue(name: string, payload: QueuedPayload) {
-    const rec: QueuedRecord = { clientUuid: payload.clientUuid, tripId, name, payload, state: "queued", message: "مبدئي – لم يُرفع" };
+    const rec: QueuedRecord = { clientUuid: payload.clientUuid, tripId, name, payload, state: "queued", message: "مبدئي – لم يُرفع بعد" };
     try {
       await putRecords([rec]);
     } catch {
-      setBanner({ name, message: "مقدرتش أحفظ التسجيل على الموبايل", tone: "danger" });
+      setBanner({ name, message: "تعذّر حفظ التسجيل على الهاتف", tone: "danger" });
       return;
     }
-    setBanner({ name, message: "اتسجل مبدئيًا – لم يُرفع", tone: "warning", clientUuid: rec.clientUuid });
+    setBanner({ name, message: "سُجِّل مبدئيًا – لم يُرفع بعد", tone: "warning", clientUuid: rec.clientUuid });
     navigator.vibrate?.(80);
     await reloadRecords();
     void sync();
   }
 
   function onStudent(bookingId: number, method: "qr" | "manual", code?: string) {
-    if (!cp) return setBanner({ message: "مفيش تجمع مفتوح دلوقتي", tone: "danger" });
+    if (!cp) return setBanner({ message: "لا يوجد تجمع مفتوح الآن", tone: "danger" });
     const s = students.get(bookingId);
-    if (!s) return setBanner({ message: "الطالب مش في الرحلة (أو مش في أتوبيسك)", tone: "danger" });
-    if (s.out && cp.sortOrder > 1) return setBanner({ name: s.name, message: "متعلّم غياب نهائي من التجمع الأول", tone: "danger" });
-    if (isRecorded(bookingId)) return setBanner({ name: s.name, message: "مكرر: متسجل قبل كده في التجمع ده", tone: "neutral" });
+    if (!s) return setBanner({ message: "الطالب ليس في الرحلة (أو ليس في حافلتك)", tone: "danger" });
+    if (s.out && cp.sortOrder > 1) return setBanner({ name: s.name, message: "سُجِّل غيابه نهائيًا في التجمع الأول", tone: "danger" });
+    if (isRecorded(bookingId)) return setBanner({ name: s.name, message: "مكرر: مسجَّل من قبل في هذا التجمع", tone: "neutral" });
     void enqueue(s.name, { kind: "student", clientUuid: crypto.randomUUID(), checkpointId: cp.id, bookingId, method, code, recordedAt: Date.now() });
   }
 
   function onStaff(userId: number, method: "qr" | "manual", code?: string) {
     const sup = pack?.supervisors?.find((s) => s.userId === userId);
-    if (!pack?.supervisors) return setBanner({ message: "ده QR مشرف، والأدمن بس اللي يسجّله", tone: "danger" });
-    if (!sup) return setBanner({ message: "المشرف ده مش على الرحلة", tone: "danger" });
+    if (!pack?.supervisors) return setBanner({ message: "هذا رمز مشرف، ويسجّله المسؤول فقط", tone: "danger" });
+    if (!sup) return setBanner({ message: "هذا المشرف ليس مضافًا إلى الرحلة", tone: "danger" });
     const already = sup.present || records.some((r) => r.payload.kind === "staff" && r.payload.userId === userId && standing(r));
-    if (already) return setBanner({ name: sup.name, message: "مكرر: المشرف متسجل قبل كده", tone: "neutral" });
+    if (already) return setBanner({ name: sup.name, message: "مكرر: المشرف مسجَّل من قبل", tone: "neutral" });
     void enqueue(sup.name, { kind: "staff", clientUuid: crypto.randomUUID(), userId, method, code, recordedAt: Date.now() });
   }
 
@@ -178,7 +182,7 @@ export function Scanner({ tripId }: { tripId: number }) {
     if (lastText.current && lastText.current.text === text && now - lastText.current.at < SAME_SCAN_MS) return;
     lastText.current = { text, at: now };
     const qr = parseQrPayload(text);
-    if (!qr) return setBanner({ message: "ده مش QR حضور", tone: "danger" });
+    if (!qr) return setBanner({ message: "هذا ليس رمز حضور", tone: "danger" });
     if (qr.kind === "B") onStudent(qr.id, "qr", qr.code);
     else onStaff(qr.id, "qr", qr.code);
   };
@@ -186,19 +190,20 @@ export function Scanner({ tripId }: { tripId: number }) {
   async function download() {
     if (await refreshPack()) {
       warmOffline([`/dashboard/trips/${tripId}/scan`]);
-      setBanner({ message: "الرحلة اتحملت وتقدر تشتغل من غير نت", tone: "success" });
+      setBanner({ message: "حُمِّلت الرحلة ويمكنك العمل دون إنترنت", tone: "success" });
     } else {
-      setBanner({ message: "مفيش نت، جرّب تاني", tone: "danger" });
+      setBanner({ message: "لا يوجد اتصال بالإنترنت، حاول مجددًا", tone: "danger" });
     }
   }
 
   const unsent = records.filter((r) => r.state === "queued").length;
+  const timeFmt = (ms: number) => new Date(ms).toLocaleTimeString(intlLocale(locale), { hour: "numeric", minute: "2-digit" });
 
   if (!pack) {
     return (
       <div className="mx-auto max-w-md space-y-3 text-center">
-        <p className="text-sm text-muted">{loading ? "بيحمّل الرحلة..." : "الرحلة مش متحمّلة على الموبايل ده. افتح الصفحة والنت شغال مرة."}</p>
-        {!loading && <Button onClick={download}>تحميل الرحلة للعمل أوفلاين</Button>}
+        <p className="text-sm text-muted">{loading ? t("جارٍ تحميل الرحلة…") : t("الرحلة غير محمّلة على هذا الهاتف. افتح الصفحة مرة وأنت متصل بالإنترنت.")}</p>
+        {!loading && <Button onClick={download}>{t("تحميل الرحلة للعمل دون إنترنت")}</Button>}
       </div>
     );
   }
@@ -209,28 +214,32 @@ export function Scanner({ tripId }: { tripId: number }) {
         <div>
           <h1 className="text-lg font-bold">{pack.trip.title}</h1>
           <p className="text-xs text-muted">
-            {savedAt ? `آخر تحميل ${new Date(savedAt).toLocaleTimeString("ar-EG", { hour: "numeric", minute: "2-digit" })}` : ""}
+            {savedAt ? t("آخر تحميل {time}", { time: timeFmt(savedAt) }) : ""}
           </p>
         </div>
         <div className="flex items-center gap-2 text-sm" role="status">
           <span className={`inline-block size-2.5 rounded-full ${online ? "bg-success" : "bg-danger"}`} />
-          {online ? "أونلاين" : "أوفلاين"}
-          {unsent > 0 && <Badge tone="warning">{unsent} لسه مترفعش</Badge>}
+          {online ? t("متصل") : t("غير متصل")}
+          {unsent > 0 && <Badge tone="warning">{t("{n} لم تُرفع بعد", { n: unsent })}</Badge>}
         </div>
       </div>
 
       {signedOut && (
         <div className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
-          الجلسة انتهت. <a href="/login" className="underline">سجّل دخول</a> تاني عشان التسجيلات تترفع (محفوظة على الموبايل).
+          {t("انتهت الجلسة.")}{" "}
+          <a href="/login" className="underline">
+            {t("سجِّل الدخول مجددًا")}
+          </a>{" "}
+          {t("لرفع التسجيلات (محفوظة على الهاتف).")}
         </div>
       )}
 
       <div className="flex flex-wrap items-center gap-2">
         {openCps.length === 0 ? (
-          <span className="text-sm text-danger">مفيش تجمع مفتوح دلوقتي</span>
+          <span className="text-sm text-danger">{t("لا يوجد تجمع مفتوح الآن")}</span>
         ) : (
           <select
-            aria-label="التجمع"
+            aria-label={t("التجمع")}
             value={cp?.id ?? ""}
             onChange={(e) => setCpId(Number(e.target.value))}
             className="rounded-lg border border-border bg-surface px-3 py-2 text-sm"
@@ -243,11 +252,11 @@ export function Scanner({ tripId }: { tripId: number }) {
           </select>
         )}
         <Button variant="secondary" className="px-3 py-2 text-xs" onClick={download} disabled={loading}>
-          تحميل الرحلة للعمل أوفلاين
+          {t("تحميل الرحلة للعمل دون إنترنت")}
         </Button>
         {unsent > 0 && online && (
           <Button variant="secondary" className="px-3 py-2 text-xs" onClick={() => void sync()}>
-            رفع دلوقتي
+            {t("الرفع الآن")}
           </Button>
         )}
       </div>
@@ -255,16 +264,16 @@ export function Scanner({ tripId }: { tripId: number }) {
       {banner && (
         <div className={`rounded-xl border px-4 py-3 ${bannerCls[banner.tone]}`} role="alert">
           {banner.name && <div className="text-lg font-bold">{banner.name}</div>}
-          <div className="text-sm font-medium">{banner.message}</div>
+          <div className="text-sm font-medium">{t(banner.message)}</div>
         </div>
       )}
 
       <div className="flex gap-1 rounded-lg border border-border bg-surface p-1 text-sm" role="tablist">
         {(
           [
-            ["scan", "Scan"],
-            ["list", "الكشف"],
-            ["log", `التسجيلات (${records.length})`],
+            ["scan", t("مسح الرمز")],
+            ["list", t("الكشف")],
+            ["log", t("التسجيلات ({n})", { n: records.length })],
           ] as const
         ).map(([key, label]) => (
           <button
@@ -287,6 +296,7 @@ export function Scanner({ tripId }: { tripId: number }) {
 }
 
 function Camera({ onDecoded }: { onDecoded: (text: string) => void }) {
+  const t = useT();
   const video = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState<string | null>(null);
   const handler = useRef(onDecoded);
@@ -327,7 +337,7 @@ function Camera({ onDecoded }: { onDecoded: (text: string) => void }) {
         }
         tick();
       } catch {
-        setError("مقدرتش أفتح الكاميرا. اسمح بالكاميرا من إعدادات المتصفح، أو سجّل من «الكشف».");
+        setError("تعذّر فتح الكاميرا. اسمح باستخدام الكاميرا من إعدادات المتصفح، أو سجِّل من «الكشف».");
       }
     })();
 
@@ -339,7 +349,7 @@ function Camera({ onDecoded }: { onDecoded: (text: string) => void }) {
   }, []);
 
   return error ? (
-    <p className="rounded-lg border border-border bg-surface p-4 text-sm text-danger">{error}</p>
+    <p className="rounded-lg border border-border bg-surface p-4 text-sm text-danger">{t(error)}</p>
   ) : (
     <div className="overflow-hidden rounded-2xl border border-border bg-black">
       <video ref={video} muted playsInline className="aspect-square w-full object-cover" />
@@ -360,14 +370,15 @@ function RosterList({
   onMark: (bookingId: number) => void;
   onStaff: (userId: number) => void;
 }) {
+  const t = useT();
   const [q, setQ] = useState("");
   const shown = pack.students.filter((s) => !(cp && cp.sortOrder > 1 && s.out) && (!q || s.name.includes(q.trim()) || s.phone.includes(q.trim())));
   const remaining = shown.filter((s) => !isRecorded(s.bookingId)).length;
   return (
     <div className="space-y-3">
-      <Input type="search" placeholder="دوّر بالاسم أو الهاتف" value={q} onChange={(e) => setQ(e.target.value)} />
+      <Input type="search" placeholder={t("ابحث بالاسم أو الهاتف")} value={q} onChange={(e) => setQ(e.target.value)} />
       <p className="text-xs text-muted">
-        {cp ? `${cp.name}: لسه ${remaining} من ${shown.length}` : "مفيش تجمع مفتوح"}
+        {cp ? t("{name}: متبقٍّ {left} من {total}", { name: cp.name, left: remaining, total: shown.length }) : t("لا يوجد تجمع مفتوح")}
       </p>
       <ul className="divide-y divide-border rounded-2xl border border-border bg-surface">
         {shown.map((s) => {
@@ -385,11 +396,11 @@ function RosterList({
                 </div>
               </div>
               {done ? (
-                <Badge tone="success">متسجل</Badge>
+                <Badge tone="success">{t("مسجَّل")}</Badge>
               ) : (
                 pack.canManual && cp && (
                   <Button className="px-3 py-1.5 text-xs" onClick={() => onMark(s.bookingId)}>
-                    تحضير
+                    {t("تسجيل الحضور")}
                   </Button>
                 )
               )}
@@ -399,16 +410,16 @@ function RosterList({
       </ul>
       {pack.supervisors && pack.supervisors.length > 0 && (
         <>
-          <h2 className="pt-2 font-semibold">المشرفين</h2>
+          <h2 className="pt-2 font-semibold">{t("المشرفون")}</h2>
           <ul className="divide-y divide-border rounded-2xl border border-border bg-surface">
             {pack.supervisors.map((s) => (
               <li key={s.userId} className="flex items-center justify-between gap-3 px-4 py-2.5">
                 <span className="font-medium">{s.name}</span>
                 {s.present ? (
-                  <Badge tone="success">متسجل</Badge>
+                  <Badge tone="success">{t("مسجَّل")}</Badge>
                 ) : (
                   <Button variant="secondary" className="px-3 py-1.5 text-xs" onClick={() => onStaff(s.userId)}>
-                    تحضير
+                    {t("تسجيل الحضور")}
                   </Button>
                 )}
               </li>
@@ -421,7 +432,9 @@ function RosterList({
 }
 
 function RecordLog({ records }: { records: QueuedRecord[] }) {
-  if (!records.length) return <p className="text-sm text-muted">مفيش تسجيلات على الموبايل ده.</p>;
+  const t = useT();
+  const locale = useLocale();
+  if (!records.length) return <p className="text-sm text-muted">{t("لا توجد تسجيلات على هذا الهاتف.")}</p>;
   return (
     <ul className="divide-y divide-border rounded-2xl border border-border bg-surface">
       {[...records].reverse().map((r) => (
@@ -429,10 +442,10 @@ function RecordLog({ records }: { records: QueuedRecord[] }) {
           <div>
             <div className="font-medium">{r.name}</div>
             <div className="text-xs text-muted">
-              {new Date(r.payload.recordedAt).toLocaleTimeString("ar-EG", { hour: "numeric", minute: "2-digit" })} · {r.payload.method === "qr" ? "QR" : "يدوي"}
+              {new Date(r.payload.recordedAt).toLocaleTimeString(intlLocale(locale), { hour: "numeric", minute: "2-digit" })} · {r.payload.method === "qr" ? "QR" : t("يدوي")}
             </div>
           </div>
-          <Badge tone={RESULT_TONES[r.state]}>{r.message}</Badge>
+          <Badge tone={RESULT_TONES[r.state]}>{t(r.message)}</Badge>
         </li>
       ))}
     </ul>

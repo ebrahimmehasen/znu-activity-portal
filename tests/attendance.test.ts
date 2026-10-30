@@ -100,7 +100,7 @@ describe("trip run and attendance", () => {
   describe("start and end", () => {
     it("starts on the trip day only, closes booking and opens the first gathering", async () => {
       const later = await newTrip({ date: daysFromToday(3) });
-      expect(await startTrip(admin, later, ctx)).toEqual({ ok: false, error: "زرار البدء بيشتغل في يوم الرحلة بس" });
+      expect(await startTrip(admin, later, ctx)).toEqual({ ok: false, error: "يمكن بدء الرحلة في يومها فقط" });
 
       const id = await newTrip();
       await setBookingOpen(admin, id, true, ctx);
@@ -117,7 +117,7 @@ describe("trip run and attendance", () => {
 
     it("ends only an ongoing trip, closing open gatherings; reopening needs explicit confirmation", async () => {
       const id = await newTrip();
-      expect(await endTrip(admin, id, ctx)).toEqual({ ok: false, error: "زرار الإنهاء للرحلات الحالية بس" });
+      expect(await endTrip(admin, id, ctx)).toEqual({ ok: false, error: "يمكن إنهاء الرحلات الجارية فقط" });
       await startTrip(admin, id, ctx);
       expect(await endTrip(admin, id, ctx)).toEqual({ ok: true });
       expect((await getTrip(id))!.status).toBe("finished");
@@ -233,7 +233,7 @@ describe("trip run and attendance", () => {
       const noPerm = await newSupervisor(["manage_gatherings"], id);
       await expect(syncAttendance(noPerm, id, [await scan(bookingIds[0], cp.id)])).rejects.toThrow(ForbiddenError);
       const elsewhere = await newSupervisor(["take_attendance"]);
-      expect(await syncAttendance(elsewhere, id, [])).toEqual({ ok: false, error: "الرحلة مش موجودة" });
+      expect(await syncAttendance(elsewhere, id, [])).toEqual({ ok: false, error: "الرحلة غير موجودة" });
     });
 
     it("stay within their bus", async () => {
@@ -267,7 +267,7 @@ describe("trip run and attendance", () => {
       const sup = await newSupervisor(["take_attendance"], id);
       await sync(sup, id, [await scan(bookingIds[1], cp.id)]);
       expect(await markRemainingAbsent(admin, cp.id, ctx)).toEqual({ ok: true, count: 1 });
-      expect(await lockRoster(admin, id, ctx)).toEqual({ ok: false, error: "فيه 1 تسجيل مستني التأكيد" });
+      expect(await lockRoster(admin, id, ctx)).toEqual({ ok: false, error: "يوجد 1 تسجيل بانتظار التأكيد" });
 
       await confirmRecords(admin, cp.id, null, ctx);
       expect(await lockRoster(admin, id, ctx)).toEqual({ ok: true, present: 2, absent: 1 });
@@ -324,7 +324,7 @@ describe("trip run and attendance", () => {
 
     it("need the confirmed count, the permission, and one open at a time", async () => {
       const { id, cp } = await started(1);
-      expect(await addCheckpoint(admin, id, { name: "الغدا", time: "13:00" }, ctx)).toEqual({ ok: false, error: "أكّد عدد الرحلة في التجمع الأول الأول" });
+      expect(await addCheckpoint(admin, id, { name: "الغدا", time: "13:00" }, ctx)).toEqual({ ok: false, error: "أكِّد عدد الرحلة في التجمع الأول أولًا" });
       await sync(admin, id, [await scan((await checkpointRoster((await getTrip(id))!, cp, { kind: "all" }))[0].bookingId, cp.id)]);
       await lockRoster(admin, id, ctx);
 
@@ -333,11 +333,11 @@ describe("trip run and attendance", () => {
       const b = await addCheckpoint(gatherer, id, { name: "الرجوع", time: "18:00" }, ctx);
       if (!a.ok || !b.ok) throw new Error("cp");
       expect(await setCheckpointOpen(gatherer, a.id, true, ctx)).toEqual({ ok: true });
-      expect(await setCheckpointOpen(gatherer, b.id, true, ctx)).toEqual({ ok: false, error: "اقفل «الغدا» الأول" });
-      expect(await setCheckpointOpen(gatherer, cp.id, true, ctx)).toEqual({ ok: false, error: "التجمع الأول بيتقفل مع تأكيد عدد الرحلة" });
+      expect(await setCheckpointOpen(gatherer, b.id, true, ctx)).toEqual({ ok: false, error: "أغلق «الغدا» أولًا" });
+      expect(await setCheckpointOpen(gatherer, cp.id, true, ctx)).toEqual({ ok: false, error: "يُغلق التجمع الأول عند تأكيد عدد الرحلة" });
 
       const outsider = await newSupervisor(["manage_gatherings"]);
-      expect(await setCheckpointOpen(outsider, a.id, false, ctx)).toEqual({ ok: false, error: "التجمع مش موجود" });
+      expect(await setCheckpointOpen(outsider, a.id, false, ctx)).toEqual({ ok: false, error: "التجمع غير موجود" });
       const plain = await newSupervisor(["take_attendance"], id);
       await expect(addCheckpoint(plain, id, { name: "x", time: "10:00" }, ctx)).rejects.toThrow(ForbiddenError);
     });

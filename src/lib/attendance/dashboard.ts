@@ -70,7 +70,7 @@ export async function tripDashboard(actor: SessionUser, trip: Activity) {
     trip.busesEnabled && scope.kind === "all"
       ? [
           ...tripBuses.map((b) => ({ key: `bus-${b.id}`, label: b.name, rows: rows.filter((r) => r.busId === b.id) })),
-          { key: "no-bus", label: "من غير أتوبيس", rows: rows.filter((r) => r.busId === null) },
+          { key: "no-bus", label: "بدون حافلة", rows: rows.filter((r) => r.busId === null) },
         ].filter((g) => g.rows.length > 0)
       : [];
 

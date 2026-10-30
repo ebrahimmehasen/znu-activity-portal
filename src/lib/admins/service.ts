@@ -17,10 +17,10 @@ function assertSuperAdmin(actor: SessionUser) {
 export const usernameSchema = z
   .string()
   .trim()
-  .regex(/^[a-zA-Z0-9._-]{3,50}$/, "اليوزر من 3 لـ 50 حرف إنجليزي أو أرقام أو . _ -");
+  .regex(/^[a-zA-Z0-9._-]{3,50}$/, "اسم المستخدم من 3 إلى 50 حرفًا إنجليزيًا أو رقمًا أو . _ -");
 
 export const createAdminSchema = z.object({
-  name: z.string().trim().min(2, "اكتب الاسم").max(150),
+  name: z.string().trim().min(2, "أدخل الاسم").max(150),
   username: usernameSchema,
   password: passwordSchema,
 });
@@ -45,7 +45,7 @@ export async function listAdmins() {
 export async function createAdmin(actor: SessionUser, input: z.infer<typeof createAdminSchema>, ctx: RequestCtx): Promise<Result> {
   assertSuperAdmin(actor);
   const data = createAdminSchema.parse(input);
-  if (await findActiveUserByUsername(data.username)) return { ok: false, error: "اليوزر ده مستخدم قبل كده" };
+  if (await findActiveUserByUsername(data.username)) return { ok: false, error: "اسم المستخدم هذا مستخدَم بالفعل" };
 
   const [created] = await db
     .insert(users)
@@ -78,7 +78,7 @@ async function findManageableAdmin(actor: SessionUser, id: number) {
 export async function setAdminActive(actor: SessionUser, id: number, active: boolean, ctx: RequestCtx): Promise<Result> {
   assertSuperAdmin(actor);
   const target = await findManageableAdmin(actor, id);
-  if (!target) return { ok: false, error: "الحساب مش موجود" };
+  if (!target) return { ok: false, error: "الحساب غير موجود" };
 
   await db.update(users).set({ isActive: active }).where(eq(users.id, id));
   if (!active) await deleteUserSessions(id);
@@ -92,7 +92,7 @@ export async function setAdminActive(actor: SessionUser, id: number, active: boo
 export async function deleteAdmin(actor: SessionUser, id: number, ctx: RequestCtx): Promise<Result> {
   assertSuperAdmin(actor);
   const target = await findManageableAdmin(actor, id);
-  if (!target) return { ok: false, error: "الحساب مش موجود" };
+  if (!target) return { ok: false, error: "الحساب غير موجود" };
 
   await db.update(users).set({ deletedAt: new Date(), isActive: false }).where(eq(users.id, id));
   await deleteUserSessions(id);
@@ -108,7 +108,7 @@ export async function resetAdminPassword(actor: SessionUser, id: number, passwor
   const parsed = passwordSchema.safeParse(password);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
   const target = await findManageableAdmin(actor, id);
-  if (!target) return { ok: false, error: "الحساب مش موجود" };
+  if (!target) return { ok: false, error: "الحساب غير موجود" };
 
   await db.update(users).set({ passwordHash: await hashPassword(parsed.data) }).where(eq(users.id, id));
   await deleteUserSessions(id);

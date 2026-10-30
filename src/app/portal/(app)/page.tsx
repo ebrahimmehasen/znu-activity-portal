@@ -1,18 +1,23 @@
 import type { Metadata } from "next";
+import { getT } from "@/i18n/server";
 import Link from "next/link";
 import { QrReadiness } from "@/components/qr/student-qr";
 import { Badge, Card, PageHeader } from "@/components/ui";
 import { BOOKING_STATUS_LABELS } from "@/lib/bookings/service";
 import { formatDate, formatTime } from "@/lib/dates";
+import { getI18n } from "@/i18n/server";
 import { listStudentTrips } from "@/lib/students/auth";
 import { requireStudent } from "@/lib/students/session";
 import { STATUS_LIST_LABELS, isStatus } from "@/lib/trips/labels";
 import { BOOKING_TONES } from "./booking-tones";
 
-export const metadata: Metadata = { title: "رحلاتي" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getT())("رحلاتي") };
+}
 
 export default async function PortalHome({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const student = await requireStudent();
+  const { locale, t: tr } = await getI18n();
   const sp = await searchParams;
   const trips = await listStudentTrips(student.id);
   const counts = { upcoming: 0, ongoing: 0, finished: 0 };
@@ -23,7 +28,7 @@ export default async function PortalHome({ searchParams }: { searchParams: Promi
 
   return (
     <>
-      <PageHeader title={`أهلًا ${student.name.split(" ")[0]}`} description="رحلاتك وحالة حجزك في كل رحلة" />
+      <PageHeader title={tr("مرحبًا {name}", { name: student.name.split(" ")[0] })} description={tr("رحلاتك وحالة حجزك في كل رحلة")} />
 
       <div className="mb-5">
         <QrReadiness />
@@ -40,13 +45,13 @@ export default async function PortalHome({ searchParams }: { searchParams: Promi
               s === status ? "bg-primary text-primary-foreground" : "border border-border bg-surface text-muted"
             }`}
           >
-            {STATUS_LIST_LABELS[s]} ({counts[s]})
+            {tr(STATUS_LIST_LABELS[s])} ({counts[s]})
           </Link>
         ))}
       </div>
 
       {shown.length === 0 ? (
-        <Card className="py-10 text-center text-muted">مفيش رحلات {STATUS_LIST_LABELS[status]}.</Card>
+        <Card className="py-10 text-center text-muted">{tr("لا توجد رحلات {status}.", { status: tr(STATUS_LIST_LABELS[status]) })}</Card>
       ) : (
         <div className="space-y-3">
           {shown.map((t) => (
@@ -56,13 +61,13 @@ export default async function PortalHome({ searchParams }: { searchParams: Promi
                   <div>
                     <div className="font-semibold">{t.trip.title}</div>
                     <div className="mt-1 text-sm text-muted">
-                      {formatDate(t.trip.date)}
-                      {t.trip.startTime && ` · ${formatTime(t.trip.startTime)}`}
+                      {formatDate(t.trip.date, locale)}
+                      {t.trip.startTime && ` · ${formatTime(t.trip.startTime, locale)}`}
                       {t.trip.location && ` · ${t.trip.location}`}
                     </div>
                   </div>
                   <Badge tone={BOOKING_TONES[t.bookingStatus]}>
-                    {BOOKING_STATUS_LABELS[t.bookingStatus]}
+                    {tr(BOOKING_STATUS_LABELS[t.bookingStatus])}
                     {t.bookingStatus === "waitlisted" && t.waitlistPosition ? ` #${t.waitlistPosition}` : ""}
                   </Badge>
                 </div>

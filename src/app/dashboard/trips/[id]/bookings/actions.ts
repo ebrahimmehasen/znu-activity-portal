@@ -65,7 +65,7 @@ export async function autoAssignAction(_prev: FormState, fd: FormData): Promise<
   const r = await autoAssignBuses(actor, activityId, await getRequestCtx());
   if (!r.ok) return { ok: false, message: r.error };
   refresh(activityId);
-  return { ok: true, message: r.left ? `اتوزع ${r.assigned}، وفاضل ${r.left} من غير مكان` : `اتوزع ${r.assigned}` };
+  return { ok: true, message: r.left ? `وُزِّع ${r.assigned}، وبقي ${r.left} دون مكان` : `وُزِّع ${r.assigned}` };
 }
 
 export async function toggleBookingAction(_prev: FormState, fd: FormData): Promise<FormState> {
@@ -87,5 +87,5 @@ export async function addManualAction(activityId: number, fd: FormData): Promise
   );
   if (!r.ok) return { ok: false, message: r.error, errors: r.errors };
   refresh(activityId);
-  return { ok: true, message: `اتضاف ${String(fd.get("name") ?? "").trim()} كحجز مؤكد` };
+  return { ok: true, message: `أُضيف ${String(fd.get("name") ?? "").trim()} بحجز مؤكد` };
 }

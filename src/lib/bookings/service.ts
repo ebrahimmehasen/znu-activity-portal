@@ -109,10 +109,10 @@ async function lockTrip(tx: Tx, where: SQL) {
 }
 
 const EXISTING_BOOKING_MESSAGES: Record<BookingStatus, string> = {
-  pending: "انت حاجز في الرحلة دي قبل كده، وطلبك في انتظار التأكيد",
-  confirmed: "انت حاجز في الرحلة دي قبل كده، وحجزك متأكد",
-  waitlisted: "انت مسجل في قائمة الانتظار للرحلة دي قبل كده",
-  cancelled: "حجزك في الرحلة دي اتلغى قبل كده. لو عايز ترجع كلّم المسؤول عن الرحلة",
+  pending: "لديك حجز سابق في هذه الرحلة، وطلبك بانتظار التأكيد",
+  confirmed: "لديك حجز سابق مؤكد في هذه الرحلة",
+  waitlisted: "أنت مسجَّل بالفعل في قائمة انتظار هذه الرحلة",
+  cancelled: "أُلغي حجزك في هذه الرحلة من قبل. للعودة تواصل مع المسؤول عن الرحلة",
 };
 
 // ─── Public form ─────────────────────────────────────────────────────────────
@@ -123,7 +123,7 @@ export async function submitPublicBooking(token: string, input: StudentInput, ct
   const ipKey = `booking:ip:${ctx.ip ?? "unknown"}`;
   const { ip, nationalId: nid } = PUBLIC_BOOKING_LIMITS;
   const ipLocked = await lockedFor(ipKey, ip.limit);
-  if (ipLocked) return { ok: false, error: "محاولات كتير من نفس الشبكة. استنى شوية وجرّب تاني", locked: ipLocked };
+  if (ipLocked) return { ok: false, error: "محاولات كثيرة من الشبكة نفسها. انتظر قليلًا ثم حاول مجددًا", locked: ipLocked };
   await registerFailure(ipKey, ip.limit, ip.windowSeconds, ip.lockSeconds);
 
   const parsed = studentInputSchema.safeParse(input);
@@ -132,17 +132,17 @@ export async function submitPublicBooking(token: string, input: StudentInput, ct
 
   const nidKey = `booking:nid:${data.nationalId}`;
   const nidLocked = await lockedFor(nidKey, nid.limit);
-  if (nidLocked) return { ok: false, error: "محاولات كتير بنفس الرقم القومي. استنى شوية وجرّب تاني", locked: nidLocked };
+  if (nidLocked) return { ok: false, error: "محاولات كثيرة بالرقم القومي نفسه. انتظر قليلًا ثم حاول مجددًا", locked: nidLocked };
 
-  if (!(await activeFacultyExists(data.facultyId))) return { ok: false, errors: { facultyId: "اختار الكلية" } };
+  if (!(await activeFacultyExists(data.facultyId))) return { ok: false, errors: { facultyId: "اختر الكلية" } };
   const policy = await getSetting("duplicate_national_id_policy");
 
   const outcome = await db.transaction(async (tx) => {
     const trip = await lockTrip(tx, eq(activities.publicToken, token));
-    if (!trip) return fail("الرحلة مش موجودة");
+    if (!trip) return fail("الرحلة غير موجودة");
     const state = availability(trip, await occupiedSeats(tx, trip.id));
-    if (state === "closed") return fail("الحجز في الرحلة دي مقفول");
-    if (state === "full") return fail("العدد اكتمل والحجز اتقفل");
+    if (state === "closed") return fail("الحجز في هذه الرحلة مغلق");
+    if (state === "full") return fail("اكتمل العدد وأُغلق الحجز");
 
     const { student, created } = await findOrCreateStudent(tx, data);
     const [existing] = await tx
@@ -152,7 +152,7 @@ export async function submitPublicBooking(token: string, input: StudentInput, ct
     if (existing) return fail(EXISTING_BOOKING_MESSAGES[existing.status]);
 
     const other = await sameDayBooking(tx, student.id, trip);
-    if (other) return fail(`انت حاجز في رحلة «${other.title}» في نفس اليوم، ومينفعش تحجز رحلتين في يوم واحد`);
+    if (other) return fail(`لديك حجز في رحلة «${other.title}» في اليوم نفسه، ولا يمكن حجز رحلتين في يوم واحد`);
 
     const diff = created ? [] : differingFields(student, data);
     let dataHandling: "updated" | "kept" | "flagged" | null = null;
@@ -222,7 +222,7 @@ export async function addManualBooking(
   const parsed = studentInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, errors: zodErrors(parsed.error.issues) };
   const data = parsed.data;
-  if (!(await activeFacultyExists(data.facultyId))) return { ok: false, errors: { facultyId: "اختار الكلية" } };
+  if (!(await activeFacultyExists(data.facultyId))) return { ok: false, errors: { facultyId: "اختر الكلية" } };
   // Only admins may book a student into two trips on the same day.
   const mayOverride = actor.role !== "supervisor" && input.allowSameDay === true;
   // Recording money stays with admins.
@@ -230,22 +230,22 @@ export async function addManualBooking(
 
   // Scope lookups use the shared connection, so they run before the transaction.
   const [preTrip] = await db.select().from(activities).where(and(eq(activities.id, activityId), eq(activities.type, "trip")));
-  if (!preTrip) return fail("الرحلة مش موجودة");
+  if (!preTrip) return fail("الرحلة غير موجودة");
   const scope = await bookingScope(actor, preTrip);
-  if (scope.kind === "none") return fail("الرحلة مش موجودة");
+  if (scope.kind === "none") return fail("الرحلة غير موجودة");
   // A bus-scoped supervisor adds students to their own bus, otherwise they'd vanish from their list.
   const ownBus = scope.kind === "bus" && preTrip.busesEnabled ? scope.busId : null;
-  if (scope.kind === "bus" && ownBus === null) return fail("انت مش متسكّن على أتوبيس في الرحلة دي، كلّم الأدمن");
+  if (scope.kind === "bus" && ownBus === null) return fail("لم تُعيَّن على حافلة في هذه الرحلة، تواصل مع المسؤول");
 
   const outcome = await db.transaction(async (tx) => {
     const trip = await lockTrip(tx, and(eq(activities.id, activityId), eq(activities.type, "trip"))!);
-    if (!trip) return fail("الرحلة مش موجودة");
-    if (trip.status === "finished") return fail("الرحلة انتهت");
-    if (trip.paymentRequired && !can(actor, "manage_activities")) return fail("الرحلة دي التأكيد فيها بعد الدفع، والإضافة فيها من الأدمن بس");
+    if (!trip) return fail("الرحلة غير موجودة");
+    if (trip.status === "finished") return fail("انتهت الرحلة");
+    if (trip.paymentRequired && !can(actor, "manage_activities")) return fail("التأكيد في هذه الرحلة بعد الدفع، والإضافة فيها للمسؤول فقط");
     if (trip.paymentRequired && !paid) {
-      return { ok: false as const, errors: { paid: "الرحلة دي التأكيد فيها بعد الدفع، علّم إن الطالب دفع" } };
+      return { ok: false as const, errors: { paid: "التأكيد في هذه الرحلة بعد الدفع، حدِّد أن الطالب دفع" } };
     }
-    if ((await occupiedSeats(tx, trip.id)) >= trip.capacity) return fail("الرحلة مكتملة. زوّد العدد الأقصى الأول");
+    if ((await occupiedSeats(tx, trip.id)) >= trip.capacity) return fail("الرحلة مكتملة. زِد الحد الأقصى أولًا");
 
     const { student, created } = await findOrCreateStudent(tx, data);
     const [existing] = await tx
@@ -253,15 +253,15 @@ export async function addManualBooking(
       .from(bookings)
       .where(and(eq(bookings.activityId, trip.id), eq(bookings.studentId, student.id)));
     if (existing && existing.status !== "cancelled") {
-      return fail(`الطالب ده حاجز بالفعل في الرحلة (${BOOKING_STATUS_LABELS[existing.status]})`);
+      return fail(`هذا الطالب لديه حجز بالفعل في الرحلة (${BOOKING_STATUS_LABELS[existing.status]})`);
     }
 
     const other = await sameDayBooking(tx, student.id, trip);
     if (other && !mayOverride) {
       return {
         ok: false as const,
-        error: `الطالب حاجز في رحلة «${other.title}» في نفس اليوم`,
-        errors: actor.role !== "supervisor" ? { allowSameDay: "علّم على «تخطي المنع» لو متأكد" } : undefined,
+        error: `الطالب لديه حجز في رحلة «${other.title}» في اليوم نفسه`,
+        errors: actor.role !== "supervisor" ? { allowSameDay: "حدِّد «تجاوز المنع» إذا كنت متأكدًا" } : undefined,
       };
     }
 
@@ -271,7 +271,7 @@ export async function addManualBooking(
         .select({ n: count() })
         .from(bookings)
         .where(and(eq(bookings.busId, ownBus), eq(bookings.status, "confirmed")));
-      if (!bus || load.n >= bus.capacity) return fail(`${bus?.name ?? "الأتوبيس"} مليان`);
+      if (!bus || load.n >= bus.capacity) return fail(`${bus?.name ?? "الحافلة"} ممتلئة`);
     }
 
     const diff = created ? [] : differingFields(student, data);
@@ -331,8 +331,8 @@ async function findBooking(id: number) {
 /** Bookings outside the actor's scope answer "not found", like missing ones. */
 async function loadEditable(actor: SessionUser, id: number) {
   const row = await findBooking(id);
-  if (!row || !inScope(await bookingScope(actor, row.trip), row.booking)) return { error: "الحجز مش موجود" } as const;
-  if (row.trip.status === "finished") return { error: "الرحلة انتهت" } as const;
+  if (!row || !inScope(await bookingScope(actor, row.trip), row.booking)) return { error: "الحجز غير موجود" } as const;
+  if (row.trip.status === "finished") return { error: "انتهت الرحلة" } as const;
   return row;
 }
 
@@ -341,16 +341,16 @@ export async function confirmBooking(actor: SessionUser, id: number, ctx: Reques
   const row = await loadEditable(actor, id);
   if ("error" in row) return fail(row.error!);
   const { booking, trip } = row;
-  if (booking.status !== "pending") return fail("الحجز ده مش معلّق");
-  if (booking.submittedData) return fail("الحجز عليه علامة «بيانات مختلفة». اختار البيانات الصح الأول");
-  if (trip.paymentRequired && !booking.paidAt) return fail("الرحلة دي التأكيد فيها بعد الدفع، سجّل الدفع الأول");
+  if (booking.status !== "pending") return fail("هذا الحجز ليس معلّقًا");
+  if (booking.submittedData) return fail("على هذا الحجز علامة «بيانات مختلفة». اختر البيانات الصحيحة أولًا");
+  if (trip.paymentRequired && !booking.paidAt) return fail("التأكيد في هذه الرحلة بعد الدفع، سجِّل الدفع أولًا");
 
   const updated = await db
     .update(bookings)
     .set({ status: "confirmed", handledBy: actor.id, handledAt: new Date() })
     .where(and(eq(bookings.id, id), eq(bookings.status, "pending")))
     .returning({ id: bookings.id });
-  if (!updated.length) return fail("الحجز اتغيّر، حدّث الصفحة");
+  if (!updated.length) return fail("تغيّر الحجز، حدِّث الصفحة");
   await recordAudit(
     { actor: { type: "user", id: actor.id }, action: "booking.confirmed", subjectType: "booking", subjectId: id, meta: { activityId: trip.id } },
     ctx,
@@ -376,7 +376,7 @@ export async function cancelBooking(actor: SessionUser, id: number, ctx: Request
   const row = await loadEditable(actor, id);
   if ("error" in row) return fail(row.error!);
   const { booking } = row;
-  if (booking.status === "cancelled") return fail("الحجز ملغي بالفعل");
+  if (booking.status === "cancelled") return fail("الحجز ملغى بالفعل");
 
   const outcome = await db.transaction(async (tx) => {
     const trip = await lockTrip(tx, eq(activities.id, booking.activityId));
@@ -386,7 +386,7 @@ export async function cancelBooking(actor: SessionUser, id: number, ctx: Request
       .set({ status: "cancelled", waitlistPosition: null, busId: null, qrSecret: null, handledBy: actor.id, handledAt: new Date() })
       .where(and(eq(bookings.id, id), ne(bookings.status, "cancelled")))
       .returning({ id: bookings.id });
-    if (!updated.length) return fail("الحجز اتغيّر، حدّث الصفحة");
+    if (!updated.length) return fail("تغيّر الحجز، حدِّث الصفحة");
 
     let promotedId: number | null = null;
     const freedSeat = OCCUPYING.includes(booking.status);
@@ -427,11 +427,11 @@ export async function promoteBooking(actor: SessionUser, id: number, ctx: Reques
   assertCan(actor, "confirm_bookings");
   const row = await loadEditable(actor, id);
   if ("error" in row) return fail(row.error!);
-  if (row.booking.status !== "waitlisted") return fail("الحجز ده مش في قائمة الانتظار");
+  if (row.booking.status !== "waitlisted") return fail("هذا الحجز ليس في قائمة الانتظار");
 
   const outcome = await db.transaction(async (tx) => {
     const trip = await lockTrip(tx, eq(activities.id, row.trip.id));
-    if (!trip || (await occupiedSeats(tx, trip.id)) >= trip.capacity) return fail("مفيش أماكن فاضية في الرحلة");
+    if (!trip || (await occupiedSeats(tx, trip.id)) >= trip.capacity) return fail("لا توجد أماكن شاغرة في الرحلة");
     await tx.update(bookings).set({ status: "pending", waitlistPosition: null }).where(eq(bookings.id, id));
     return { ok: true as const };
   });
@@ -448,11 +448,11 @@ export async function setPayment(actor: SessionUser, id: number, paid: boolean, 
   const row = await loadEditable(actor, id);
   if ("error" in row) return fail(row.error!);
   const { booking, trip } = row;
-  if (!trip.feeEnabled) return fail("الاشتراك مش مفعّل في الرحلة دي");
-  if (booking.status === "cancelled") return fail("الحجز ملغي");
+  if (!trip.feeEnabled) return fail("الاشتراك غير مفعَّل في هذه الرحلة");
+  if (booking.status === "cancelled") return fail("الحجز ملغى");
   if (paid === Boolean(booking.paidAt)) return { ok: true };
   if (!paid && trip.paymentRequired && booking.status === "confirmed") {
-    return fail("الحجز اتأكد على أساس الدفع. الغي الحجز لو الطالب مدفعش");
+    return fail("أُكِّد الحجز بناءً على الدفع. ألغِ الحجز إذا لم يدفع الطالب");
   }
 
   await db
@@ -478,7 +478,7 @@ export async function resolveSubmittedData(actor: SessionUser, id: number, choic
   const row = await loadEditable(actor, id);
   if ("error" in row) return fail(row.error!);
   const submitted = row.booking.submittedData;
-  if (!submitted) return fail("مفيش بيانات مختلفة على الحجز ده");
+  if (!submitted) return fail("لا توجد بيانات مختلفة على هذا الحجز");
 
   await db.transaction(async (tx) => {
     if (choice === "apply") await tx.update(students).set(submitted).where(eq(students.id, row.booking.studentId));
@@ -500,8 +500,8 @@ export async function resolveSubmittedData(actor: SessionUser, id: number, choic
 export async function setBookingOpen(actor: SessionUser, activityId: number, open: boolean, ctx: RequestCtx): Promise<Result> {
   assertCan(actor, "manage_activities");
   const [trip] = await db.select().from(activities).where(eq(activities.id, activityId));
-  if (!trip) return fail("الرحلة مش موجودة");
-  if (open && trip.status !== "upcoming") return fail("الحجز بيتفتح للرحلات القادمة بس");
+  if (!trip) return fail("الرحلة غير موجودة");
+  if (open && trip.status !== "upcoming") return fail("يُفتح الحجز للرحلات القادمة فقط");
   if (trip.bookingOpen === open) return { ok: true };
 
   await db.update(activities).set({ bookingOpen: open }).where(eq(activities.id, activityId));
@@ -517,8 +517,8 @@ export async function setBookingOpen(actor: SessionUser, activityId: number, ope
 export const BOOKING_STATUS_LABELS: Record<BookingStatus, string> = {
   pending: "معلّق",
   confirmed: "مؤكد",
-  cancelled: "ملغي",
-  waitlisted: "قائمة انتظار",
+  cancelled: "ملغى",
+  waitlisted: "قائمة الانتظار",
 };
 
 export const BOOKINGS_PAGE_SIZE = 50;

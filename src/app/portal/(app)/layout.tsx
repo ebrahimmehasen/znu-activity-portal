@@ -2,26 +2,29 @@ import Link from "next/link";
 import { LogoutButton } from "@/components/logout-button";
 import { STUDENT_QR_KEY } from "@/components/qr/offline-store";
 import { UnreadBadge } from "@/components/unread-badge";
+import { Preferences } from "@/components/preferences";
+import { getT, getTheme } from "@/i18n/server";
 import { studentUnreadCount } from "@/lib/announcements/service";
 import { requireStudent } from "@/lib/students/session";
 import { studentLogout } from "../actions";
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const student = await requireStudent();
-  const unread = await studentUnreadCount(student.id);
+  const [unread, t, theme] = await Promise.all([studentUnreadCount(student.id), getT(), getTheme()]);
   return (
     <div className="flex min-h-full flex-1 flex-col">
       <header className="border-b border-border bg-surface">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">
           <Link href="/portal" className="font-bold text-primary">
-            بوابة الطلبة
+            {t("بوابة الطلاب")}
           </Link>
           <div className="flex items-center gap-3 text-sm">
             <Link href="/portal/announcements" className="inline-flex items-center font-medium text-muted hover:text-foreground">
-              الإعلانات
+              {t("الإعلانات")}
               <UnreadBadge endpoint="/portal/announcements/unread" initial={unread} refreshUnder="/portal/announcements" />
             </Link>
             <span className="hidden text-muted sm:inline">{student.name}</span>
+            <Preferences theme={theme} />
             <LogoutButton action={studentLogout} storageKey={STUDENT_QR_KEY} />
           </div>
         </div>

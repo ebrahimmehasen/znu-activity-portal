@@ -12,5 +12,5 @@ export async function saveSettings(_prev: FormState, formData: FormData): Promis
   const r = await updateSettings(actor, input, await getRequestCtx());
   if (!r.ok) return { ok: false, message: r.error };
   revalidatePath("/dashboard/settings");
-  return { ok: true, message: r.changed ? "اتحفظت الإعدادات" : "مفيش تغيير" };
+  return { ok: true, message: r.changed ? "حُفظت الإعدادات" : "لا توجد تغييرات" };
 }

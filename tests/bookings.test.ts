@@ -79,10 +79,10 @@ describe("bookings", () => {
     it("refuses a duplicate booking in the same trip, whatever its status", async () => {
       const trip = await openTrip();
       await book(trip.publicToken, 1);
-      expect(await book(trip.publicToken, 1)).toMatchObject({ ok: false, error: expect.stringContaining("في انتظار التأكيد") });
+      expect(await book(trip.publicToken, 1)).toMatchObject({ ok: false, error: expect.stringContaining("بانتظار التأكيد") });
 
       await cancelBooking(admin, (await bookingOf(trip.id, 1)).id, ctx);
-      expect(await book(trip.publicToken, 1)).toMatchObject({ ok: false, error: expect.stringContaining("اتلغى") });
+      expect(await book(trip.publicToken, 1)).toMatchObject({ ok: false, error: expect.stringContaining("أُلغي") });
     });
 
     it("refuses two trips on the same day and names the other trip", async () => {
@@ -102,7 +102,7 @@ describe("bookings", () => {
       if (!r.ok) throw new Error();
       const trip = (await getTrip(r.id))!;
       expect((await getPublicTrip(trip.publicToken))?.availability).toBe("closed");
-      expect(await book(trip.publicToken, 1)).toMatchObject({ ok: false, error: "الحجز في الرحلة دي مقفول" });
+      expect(await book(trip.publicToken, 1)).toMatchObject({ ok: false, error: "الحجز في هذه الرحلة مغلق" });
 
       await setBookingOpen(admin, trip.id, true, ctx);
       expect((await getPublicTrip(trip.publicToken))?.availability).toBe("open");
@@ -118,7 +118,7 @@ describe("bookings", () => {
       await book(trip.publicToken, 1);
       await book(trip.publicToken, 2);
       expect((await getPublicTrip(trip.publicToken))?.availability).toBe("full");
-      expect(await book(trip.publicToken, 3)).toMatchObject({ ok: false, error: "العدد اكتمل والحجز اتقفل" });
+      expect(await book(trip.publicToken, 3)).toMatchObject({ ok: false, error: "اكتمل العدد وأُغلق الحجز" });
 
       await cancelBooking(admin, (await bookingOf(trip.id, 1)).id, ctx);
       expect((await book(trip.publicToken, 3)).ok).toBe(true);
@@ -132,7 +132,7 @@ describe("bookings", () => {
 
       for (let i = 0; i < 60; i++) await book(trip.publicToken, 100 + i, { name: "x" }, "10.9.9.9");
       const r = await book(trip.publicToken, 200, {}, "10.9.9.9");
-      expect(r).toMatchObject({ ok: false, error: expect.stringContaining("نفس الشبكة") });
+      expect(r).toMatchObject({ ok: false, error: expect.stringContaining("الشبكة نفسها") });
     });
   });
 

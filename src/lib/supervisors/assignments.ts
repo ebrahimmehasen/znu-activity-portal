@@ -16,8 +16,8 @@ function assertCanManage(actor: SessionUser) {
 
 async function editableTrip(activityId: number) {
   const trip = await getTrip(activityId);
-  if (!trip) return { error: "الرحلة مش موجودة" } as const;
-  if (trip.status === "finished") return { error: "الرحلة انتهت" } as const;
+  if (!trip) return { error: "الرحلة غير موجودة" } as const;
+  if (trip.status === "finished") return { error: "انتهت الرحلة" } as const;
   return { trip } as const;
 }
 
@@ -46,14 +46,14 @@ export async function assignSupervisor(actor: SessionUser, activityId: number, u
     .select({ id: users.id, username: users.username })
     .from(users)
     .where(and(eq(users.id, userId), eq(users.role, "supervisor"), eq(users.isActive, true), isNull(users.deletedAt)));
-  if (!sup) return { ok: false, error: "اختار مشرف" };
+  if (!sup) return { ok: false, error: "اختر مشرفًا" };
 
   const inserted = await db
     .insert(activitySupervisors)
     .values({ activityId, userId, assignedBy: actor.id })
     .onConflictDoNothing()
     .returning({ userId: activitySupervisors.userId });
-  if (!inserted.length) return { ok: false, error: "المشرف ده مضاف على الرحلة بالفعل" };
+  if (!inserted.length) return { ok: false, error: "هذا المشرف مضاف إلى الرحلة بالفعل" };
 
   await recordAudit(
     { actor: { type: "user", id: actor.id }, action: "activity.supervisor_added", subjectType: "activity", subjectId: activityId, meta: { userId, username: sup.username } },
@@ -71,7 +71,7 @@ export async function unassignSupervisor(actor: SessionUser, activityId: number,
     .delete(activitySupervisors)
     .where(and(eq(activitySupervisors.activityId, activityId), eq(activitySupervisors.userId, userId)))
     .returning({ userId: activitySupervisors.userId });
-  if (!removed.length) return { ok: false, error: "المشرف مش مضاف على الرحلة" };
+  if (!removed.length) return { ok: false, error: "المشرف غير مضاف إلى الرحلة" };
 
   await recordAudit(
     { actor: { type: "user", id: actor.id }, action: "activity.supervisor_removed", subjectType: "activity", subjectId: activityId, meta: { userId } },
@@ -91,9 +91,9 @@ export async function setSupervisorBus(
   assertCanManage(actor);
   const check = await editableTrip(activityId);
   if ("error" in check) return { ok: false, error: check.error! };
-  if (!check.trip.busesEnabled) return { ok: false, error: "الأتوبيسات مش مفعّلة في الرحلة دي" };
+  if (!check.trip.busesEnabled) return { ok: false, error: "الحافلات غير مفعَّلة في هذه الرحلة" };
   const current = await assignment(userId, activityId);
-  if (!current) return { ok: false, error: "المشرف مش مضاف على الرحلة" };
+  if (!current) return { ok: false, error: "المشرف غير مضاف إلى الرحلة" };
   if (current.busId === busId) return { ok: true };
 
   if (busId !== null) {
@@ -101,7 +101,7 @@ export async function setSupervisorBus(
       .select({ id: buses.id })
       .from(buses)
       .where(and(eq(buses.id, busId), eq(buses.activityId, activityId)));
-    if (!bus) return { ok: false, error: "الأتوبيس مش موجود" };
+    if (!bus) return { ok: false, error: "الحافلة غير موجودة" };
   }
 
   await db

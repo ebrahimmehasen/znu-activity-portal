@@ -67,7 +67,7 @@ describe("supervisors", () => {
       await newSupervisor([], "ali");
       expect(await createSupervisor(admin, { name: "تاني", username: "ALI", password: "password123" }, ctx)).toEqual({
         ok: false,
-        error: "اليوزر ده مستخدم قبل كده",
+        error: "اسم المستخدم هذا مستخدَم بالفعل",
       });
       expect((await createSupervisor(admin, { name: "تاني", username: admin.username, password: "password123" }, ctx)).ok).toBe(false);
     });
@@ -119,7 +119,7 @@ describe("supervisors", () => {
 
     it("cannot touch admins through the supervisor routes", async () => {
       const other = await createUser("admin");
-      expect(await setSupervisorActive(admin, other.id, false, ctx)).toEqual({ ok: false, error: "الحساب مش موجود" });
+      expect(await setSupervisorActive(admin, other.id, false, ctx)).toEqual({ ok: false, error: "الحساب غير موجود" });
     });
   });
 
@@ -136,7 +136,7 @@ describe("supervisors", () => {
       await assignSupervisor(admin, a.id, s.id, ctx);
       expect(await canViewTrip(me, a.id)).toBe(true);
       expect((await listTrips("upcoming", await visibleTripsCondition(me))).map((t) => t.title)).toEqual(["رحلة أ"]);
-      expect(await assignSupervisor(admin, a.id, s.id, ctx)).toEqual({ ok: false, error: "المشرف ده مضاف على الرحلة بالفعل" });
+      expect(await assignSupervisor(admin, a.id, s.id, ctx)).toEqual({ ok: false, error: "هذا المشرف مضاف إلى الرحلة بالفعل" });
 
       await unassignSupervisor(admin, a.id, s.id, ctx);
       expect(await canViewTrip(me, a.id)).toBe(false);
@@ -211,7 +211,7 @@ describe("supervisors", () => {
       const s = await newSupervisor(["cancel_bookings", "confirm_bookings"]);
       await assignSupervisor(admin, trip.id, s.id, ctx);
       await setSupervisorBus(admin, trip.id, s.id, bus1.id, ctx);
-      expect(await cancelBooking(await s.session(), other, ctx)).toEqual({ ok: false, error: "الحجز مش موجود" });
+      expect(await cancelBooking(await s.session(), other, ctx)).toEqual({ ok: false, error: "الحجز غير موجود" });
 
       const mine = await confirmedOn(trip.id, 2, bus1.id);
       expect((await cancelBooking(await s.session(), mine, ctx)).ok).toBe(true);
@@ -222,10 +222,10 @@ describe("supervisors", () => {
       await book(trip.publicToken, 1);
       const { rows } = await listBookings(trip.id);
       const s = await newSupervisor(["confirm_bookings", "add_students"]);
-      expect(await confirmBooking(await s.session(), rows[0].booking.id, ctx)).toEqual({ ok: false, error: "الحجز مش موجود" });
+      expect(await confirmBooking(await s.session(), rows[0].booking.id, ctx)).toEqual({ ok: false, error: "الحجز غير موجود" });
       expect(await addManualBooking(await s.session(), trip.id, studentInput(2, facultyId), ctx)).toEqual({
         ok: false,
-        error: "الرحلة مش موجودة",
+        error: "الرحلة غير موجودة",
       });
 
       await assignSupervisor(admin, trip.id, s.id, ctx);
@@ -239,13 +239,13 @@ describe("supervisors", () => {
       const me = await s.session();
       expect(await addManualBooking(me, trip.id, studentInput(1, facultyId), ctx)).toEqual({
         ok: false,
-        error: "انت مش متسكّن على أتوبيس في الرحلة دي، كلّم الأدمن",
+        error: "لم تُعيَّن على حافلة في هذه الرحلة، تواصل مع المسؤول",
       });
 
       await setSupervisorBus(admin, trip.id, s.id, bus1.id, ctx);
       expect((await addManualBooking(me, trip.id, studentInput(1, facultyId), ctx)).ok).toBe(true);
       expect((await addManualBooking(me, trip.id, studentInput(2, facultyId), ctx)).ok).toBe(true);
-      expect(await addManualBooking(me, trip.id, studentInput(3, facultyId), ctx)).toEqual({ ok: false, error: "أتوبيس 1 مليان" });
+      expect(await addManualBooking(me, trip.id, studentInput(3, facultyId), ctx)).toEqual({ ok: false, error: "أتوبيس 1 ممتلئة" });
 
       const { rows } = await listBookings(trip.id, { scope: await bookingScope(me, trip) });
       expect(rows.every((r) => r.booking.busId === bus1.id)).toBe(true);
@@ -259,7 +259,7 @@ describe("supervisors", () => {
       const s = await newSupervisor();
       await assignSupervisor(admin, trip.id, s.id, ctx);
 
-      expect(await setSupervisorBus(admin, trip.id, s.id, foreign.id, ctx)).toEqual({ ok: false, error: "الأتوبيس مش موجود" });
+      expect(await setSupervisorBus(admin, trip.id, s.id, foreign.id, ctx)).toEqual({ ok: false, error: "الحافلة غير موجودة" });
       expect((await setSupervisorBus(admin, trip.id, s.id, bus1.id, ctx)).ok).toBe(true);
       expect((await listTripSupervisors(trip.id))[0].busName).toBe("أتوبيس 1");
     });
@@ -294,7 +294,7 @@ describe("supervisor payments", () => {
     expect(rows[0].booking.paidAt).toBeNull();
     expect(await addManualBooking(me, req.id, { ...studentInput(2, facultyId), paid: true }, ctx)).toEqual({
       ok: false,
-      error: "الرحلة دي التأكيد فيها بعد الدفع، والإضافة فيها من الأدمن بس",
+      error: "التأكيد في هذه الرحلة بعد الدفع، والإضافة فيها للمسؤول فقط",
     });
   });
 });

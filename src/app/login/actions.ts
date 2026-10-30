@@ -13,7 +13,7 @@ const schema = z.object({
 
 export async function login(_prev: FormState, formData: FormData): Promise<FormState> {
   const parsed = schema.safeParse({ username: formData.get("username"), password: formData.get("password") });
-  if (!parsed.success) return { ok: false, message: "اكتب اليوزر والباسورد" };
+  if (!parsed.success) return { ok: false, message: "أدخل اسم المستخدم وكلمة المرور" };
 
   const ctx = await getRequestCtx();
   const result = await authenticate(parsed.data.username, parsed.data.password, ctx);
@@ -21,10 +21,10 @@ export async function login(_prev: FormState, formData: FormData): Promise<FormS
   if (!result.ok) {
     if (result.reason === "locked") {
       const minutes = Math.ceil(result.retryAfterSeconds / 60);
-      return { ok: false, message: `محاولات كتير غلط. حاول تاني بعد ${minutes} دقيقة.` };
+      return { ok: false, message: `محاولات خاطئة كثيرة. حاول مجددًا بعد ${minutes} دقيقة.` };
     }
-    if (result.reason === "frozen") return { ok: false, message: "الحساب ده متجمّد. كلّم الأدمن." };
-    return { ok: false, message: "اليوزر أو الباسورد غلط" };
+    if (result.reason === "frozen") return { ok: false, message: "هذا الحساب مجمَّد. تواصل مع المسؤول." };
+    return { ok: false, message: "اسم المستخدم أو كلمة المرور غير صحيحة" };
   }
 
   const { token } = await createSession(result.user.id, ctx);

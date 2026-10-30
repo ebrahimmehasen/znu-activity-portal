@@ -61,11 +61,11 @@ describe("trip report", () => {
     await book(await newTrip({ title: "تانية" }), 9); // other trips don't count
     const r = await tripReport(admin, (await getTrip(id))!);
     const summary = Object.fromEntries(r.summary);
-    expect(summary).toMatchObject({ "إجمالي الطلبات": 3, "المؤكد": 3, "الملغي": 0, "الحاضر فعليًا": 2, "الغياب": 1, "الحالة": "انتهت" });
+    expect(summary).toMatchObject({ "إجمالي الطلبات": 3, "المؤكدة": 3, "الملغاة": 0, "الحاضرون فعليًا": 2, "الغائبون": 1, "الحالة": "منتهية" });
     expect(r.checkpoints).toHaveLength(1);
     expect(r.checkpoints[0].tally).toMatchObject({ present: 2, absent: 1, total: 3 });
     expect(r.rows).toHaveLength(3);
-    expect(r.rows.map((x) => x.cells[0].split(" ")[0]).sort()).toEqual(["حاضر", "حاضر", "غياب"]);
+    expect(r.rows.map((x) => x.cells[0].split(" ")[0]).sort()).toEqual(["حاضر", "حاضر", "غائب"]);
   });
 
   it("is for admins only", async () => {
@@ -92,7 +92,7 @@ describe("manual data deletion", () => {
     const live = await newTrip();
     await book(live, 7);
     await startTrip(admin, live, ctx);
-    expect(await purgeTrip(admin, live, "رحلة الإسكندرية", ctx)).toEqual({ ok: false, error: "المسح للرحلات المنتهية بس" });
+    expect(await purgeTrip(admin, live, "رحلة الإسكندرية", ctx)).toEqual({ ok: false, error: "الحذف للرحلات المنتهية فقط" });
 
     const { id } = await finishedTrip();
     expect((await purgeTrip(admin, id, "رحلة غلط", ctx)).ok).toBe(false);
@@ -119,10 +119,10 @@ describe("manual data deletion", () => {
     const id = await newTrip({ date: daysFromToday(5) });
     const b = await book(id, 1);
     expect((await purgeStudent(admin, b.studentId, "لا", ctx)).ok).toBe(false);
-    expect(await purgeStudent(admin, b.studentId, "مسح", ctx)).toEqual({ ok: false, error: "الطالب عنده حجز في رحلة لسه مخلصتش. الغي الحجز الأول" });
+    expect(await purgeStudent(admin, b.studentId, "حذف", ctx)).toEqual({ ok: false, error: "للطالب حجز في رحلة لم تنتهِ بعد. ألغِ الحجز أولًا" });
 
     await cancelBooking(admin, b.id, ctx);
-    expect(await purgeStudent(admin, b.studentId, "مسح", ctx)).toEqual({ ok: true });
+    expect(await purgeStudent(admin, b.studentId, "حذف", ctx)).toEqual({ ok: true });
     expect(await db.select().from(students).where(eq(students.id, b.studentId))).toEqual([]);
     expect(await db.select().from(bookings).where(eq(bookings.studentId, b.studentId))).toEqual([]);
     const [log] = await db.select().from(auditLogs).where(eq(auditLogs.action, "student.purged"));
@@ -131,13 +131,13 @@ describe("manual data deletion", () => {
 
   it("allows wiping someone whose trips are all finished", async () => {
     const { a } = await finishedTrip();
-    expect(await purgeStudent(admin, a.studentId, "مسح", ctx)).toEqual({ ok: true });
+    expect(await purgeStudent(admin, a.studentId, "DELETE", ctx)).toEqual({ ok: true });
   });
 
   it("is for admins only", async () => {
     const sup = await supervisor();
     await expect(searchStudents(sup, "محمد")).rejects.toThrow(ForbiddenError);
     await expect(purgeTrip(sup, 1, "x", ctx)).rejects.toThrow(ForbiddenError);
-    await expect(purgeStudent(sup, 1, "مسح", ctx)).rejects.toThrow(ForbiddenError);
+    await expect(purgeStudent(sup, 1, "حذف", ctx)).rejects.toThrow(ForbiddenError);
   });
 });

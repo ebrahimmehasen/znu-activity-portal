@@ -19,7 +19,7 @@ export async function sendAnnouncementAction(_prev: FormState, fd: FormData): Pr
   const r = await sendAnnouncement(actor, activityId, { audience: fd.get("audience"), body: fd.get("body") }, await getRequestCtx());
   if (!r.ok) return { ok: false, message: r.error };
   refresh(activityId);
-  return { ok: true, message: "الإعلان اتبعت" };
+  return { ok: true, message: "أُرسل الإعلان" };
 }
 
 export async function deleteAnnouncementAction(_prev: FormState, fd: FormData): Promise<FormState> {

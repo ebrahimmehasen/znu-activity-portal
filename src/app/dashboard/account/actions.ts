@@ -8,11 +8,11 @@ import { passwordSchema } from "@/lib/password";
 
 const schema = z
   .object({
-    current: z.string().min(1, "اكتب الباسورد الحالي"),
+    current: z.string().min(1, "أدخل كلمة المرور الحالية"),
     next: passwordSchema,
     confirm: z.string(),
   })
-  .refine((d) => d.next === d.confirm, { path: ["confirm"], message: "الباسوردين مش متطابقين" });
+  .refine((d) => d.next === d.confirm, { path: ["confirm"], message: "كلمتا المرور غير متطابقتين" });
 
 export async function changePassword(_prev: FormState, formData: FormData): Promise<FormState> {
   const user = await requireUser();
@@ -21,6 +21,6 @@ export async function changePassword(_prev: FormState, formData: FormData): Prom
 
   const token = (await getSessionToken())!;
   const result = await changeOwnPassword(user.id, parsed.data.current, parsed.data.next, token, await getRequestCtx());
-  if (!result.ok) return { ok: false, errors: { current: "الباسورد الحالي غلط" } };
-  return { ok: true, message: "اتغيّر الباسورد، وكل الأجهزة التانية اتعملها خروج." };
+  if (!result.ok) return { ok: false, errors: { current: "كلمة المرور الحالية غير صحيحة" } };
+  return { ok: true, message: "تم تغيير كلمة المرور، وسُجِّل الخروج من كل الأجهزة الأخرى." };
 }

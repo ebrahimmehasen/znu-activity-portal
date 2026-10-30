@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { StudentFields } from "@/components/student-fields";
 import { Alert, Button } from "@/components/ui";
 import type { FormState } from "@/lib/form-state";
+import { useT } from "@/i18n/client";
 
 export function ManualBookingForm({
   action,
@@ -18,6 +19,7 @@ export function ManualBookingForm({
   paymentRequired: boolean;
   canOverrideSameDay: boolean;
 }) {
+  const t = useT();
   const [state, setState] = useState<FormState>({});
   const [pending, startTransition] = useTransition();
   const ref = useRef<HTMLFormElement>(null);
@@ -47,8 +49,8 @@ export function ManualBookingForm({
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" name="paid" className="mt-1 accent-primary" />
           <span>
-            الطالب دفع الاشتراك ({feeAmount} جنيه)
-            {paymentRequired && <span className="block text-muted">الرحلة دي التأكيد فيها بعد الدفع.</span>}
+            {t("دفع الطالب الاشتراك ({amount} جنيه)", { amount: feeAmount })}
+            {paymentRequired && <span className="block text-muted">{t("التأكيد في هذه الرحلة بعد الدفع.")}</span>}
             {err.paid && <span className="block text-danger">{err.paid}</span>}
           </span>
         </label>
@@ -58,15 +60,15 @@ export function ManualBookingForm({
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" name="allowSameDay" className="mt-1 accent-primary" />
           <span>
-            تخطي منع الحجز في رحلتين في نفس اليوم
-            <span className="block text-muted">بيتسجل في سجل العمليات.</span>
+            {t("تجاوز منع الحجز في رحلتين في اليوم نفسه")}
+            <span className="block text-muted">{t("يُسجَّل في سجل العمليات.")}</span>
             {err.allowSameDay && <span className="block text-danger">{err.allowSameDay}</span>}
           </span>
         </label>
       )}
 
       <Button type="submit" disabled={pending}>
-        {pending ? "جاري الإضافة…" : "إضافة كحجز مؤكد"}
+        {pending ? t("جارٍ الإضافة…") : t("إضافة بحجز مؤكد")}
       </Button>
     </form>
   );

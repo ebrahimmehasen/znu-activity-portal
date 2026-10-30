@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { assignBusAction } from "./actions";
+import { useT } from "@/i18n/client";
 
 export function BusSelect({
   activityId,
@@ -14,6 +15,7 @@ export function BusSelect({
   busId: number | null;
   buses: { id: number; name: string; used: number; capacity: number }[];
 }) {
+  const t = useT();
   const [state, action, pending] = useActionState(assignBusAction, {});
   return (
     <form action={action} className="inline-flex flex-col gap-1">
@@ -23,13 +25,13 @@ export function BusSelect({
       <select
         key={busId ?? "none"}
         name="busId"
-        aria-label="الأتوبيس"
+        aria-label={t("الحافلة")}
         defaultValue={busId ?? ""}
         disabled={pending}
         onChange={(e) => e.currentTarget.form?.requestSubmit()}
         className="rounded-lg border border-border bg-surface px-2 py-1.5 text-sm"
       >
-        <option value="">من غير أتوبيس</option>
+        <option value="">{t("بدون حافلة")}</option>
         {buses.map((b) => (
           <option key={b.id} value={b.id} disabled={b.id !== busId && b.used >= b.capacity}>
             {b.name} ({b.used}/{b.capacity})
