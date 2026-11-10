@@ -4,6 +4,7 @@ import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 import { useT } from "@/i18n/client";
 import { QR_STEP_SECONDS, counterAt, qrPayload, secondsLeft, totp, type QrKind } from "@/lib/qr/totp";
+import { serverNow } from "./server-clock";
 
 /** A QR that changes every 30 seconds, generated on the device (works offline). */
 export function TotpQr({ secret, kind, id }: { secret: string; kind: QrKind; id: number }) {
@@ -16,7 +17,8 @@ export function TotpQr({ secret, kind, id }: { secret: string; kind: QrKind; id:
     let counter = -1;
     let alive = true;
     async function tick() {
-      const now = Date.now();
+      // The server's time, so a phone with a wrong clock still shows a valid code.
+      const now = serverNow();
       setLeft(secondsLeft(now));
       const c = counterAt(now);
       if (c === counter) return;

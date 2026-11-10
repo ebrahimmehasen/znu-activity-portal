@@ -22,7 +22,7 @@ import type { SessionUser } from "@/lib/auth/service";
 import { can, type Ability } from "@/lib/authz";
 import { cairoInstant, cairoToday } from "@/lib/dates";
 import { ForbiddenError } from "@/lib/errors";
-import { checkBookingCode, checkSupervisorCode } from "@/lib/qr/secrets";
+import { checkLoadedBookingCode, checkSupervisorCode } from "@/lib/qr/secrets";
 import { getSetting } from "@/lib/settings/service";
 import { assignment, bookingScope, canViewTrip, inScope, scopeCondition, type BookingScope } from "@/lib/supervisors/scope";
 import { getTrip } from "@/lib/trips/service";
@@ -319,19 +319,23 @@ type SyncContext = {
  * Stores scans and manual marks. Every record answers on its own: one bad record never
  * blocks the rest of an offline batch, and a record sent twice gets the same answer.
  */
-export async function syncAttendance(actor: SessionUser, activityId: number, records: unknown[]): Promise<Result<{ outcomes: SyncOutcome[] }>> {
+export async function syncAttendance(
+  actor: SessionUser,
+  activityId: number,
+  records: unknown[],
+  /** The trip when the caller already loaded it (the scanner route), saving a query. */
+  loaded?: Activity,
+): Promise<Result<{ outcomes: SyncOutcome[] }>> {
   if (!can(actor, "take_attendance") && !can(actor, ADMIN)) throw new ForbiddenError();
-  const trip = await getTrip(activityId);
-  if (!trip || !(await canViewTrip(actor, activityId))) return fail("الرحلة غير موجودة");
+  const now = Date.now();
+  const trip = loaded?.id === activityId ? loaded : await getTrip(activityId);
+  if (!trip) return fail("الرحلة غير موجودة");
   if (!Array.isArray(records) || records.length > MAX_SYNC_BATCH) return fail("عدد التسجيلات كبير");
 
-  const sc: SyncContext = {
-    actor,
-    trip,
-    scope: await bookingScope(actor, trip),
-    checkpoints: new Map((await listCheckpoints(trip.id)).map((c) => [c.id, c])),
-    now: Date.now(),
-  };
+  // Scope (which also says whether the actor may see the trip) and gatherings in one round trip.
+  const [scope, cps] = await Promise.all([bookingScope(actor, trip), listCheckpoints(trip.id)]);
+  if (scope.kind === "none") return fail("الرحلة غير موجودة");
+  const sc: SyncContext = { actor, trip, scope, checkpoints: new Map(cps.map((c) => [c.id, c])), now };
   const outcomes: SyncOutcome[] = [];
   for (const raw of records) {
     const parsed = syncRecordSchema.safeParse(raw);
@@ -366,24 +370,36 @@ async function recordStudent(sc: SyncContext, rec: Extract<SyncRecord, { kind: "
   const out = (result: SyncResult, message: string, name?: string): SyncOutcome => ({ clientUuid: rec.clientUuid, result, message, name });
   if (!can(actor, "take_attendance")) return out("forbidden", "ليس لديك صلاحية تسجيل الحضور");
 
+  // Everything this record needs in one query: the booking, its secret, whether it was
+  // marked absent for good, and an earlier upload of the same device record.
   const [b] = await db
-    .select({ id: bookings.id, status: bookings.status, busId: bookings.busId, name: students.name })
+    .select({
+      id: bookings.id,
+      status: bookings.status,
+      busId: bookings.busId,
+      name: students.name,
+      qrSecret: bookings.qrSecret,
+      finalAbsent: sql<boolean>`${finalAbsentCondition()}`.mapWith(Boolean),
+      seenId: sql<number | null>`(select x.id from ${attendances} x where x.client_uuid = ${rec.clientUuid})`,
+    })
     .from(bookings)
     .innerJoin(students, eq(students.id, bookings.studentId))
     .where(and(eq(bookings.id, rec.bookingId), eq(bookings.activityId, trip.id)));
   if (!b) return out("not_in_trip", "الطالب ليس في هذه الرحلة");
   if (!inScope(sc.scope, b)) return out("forbidden", "هذا الطالب ليس في حافلتك");
 
-  // Idempotent re-upload: the same device record always gets the same answer.
-  const [seen] = await db.select().from(attendances).where(eq(attendances.clientUuid, rec.clientUuid));
-  if (seen) return seen.bookingId === b.id ? outcomeOf(seen, b.name) : out("error", "تسجيل غير صالح");
+  // Idempotent re-upload: the same device record always gets the same answer (rare, so a second query is fine).
+  if (b.seenId) {
+    const [seen] = await db.select().from(attendances).where(eq(attendances.id, b.seenId));
+    return seen.bookingId === b.id ? outcomeOf(seen, b.name) : out("error", "تسجيل غير صالح");
+  }
 
   const cp = sc.checkpoints.get(rec.checkpointId);
   if (!cp) return out("closed", "هذا التجمع غير موجود", b.name);
   if (b.status !== "confirmed") {
     return rec.method === "qr" ? reject(sc, rec, cp, "revoked", b.name) : out("not_in_trip", "حجز الطالب غير مؤكد", b.name);
   }
-  if (cp.sortOrder > 1 && (await isFinalAbsent(b.id))) return out("not_in_trip", "سُجِّل غياب الطالب نهائيًا في التجمع الأول", b.name);
+  if (cp.sortOrder > 1 && b.finalAbsent) return out("not_in_trip", "سُجِّل غياب الطالب نهائيًا في التجمع الأول", b.name);
 
   const at = new Date(rec.recordedAt);
   if (rec.recordedAt > sc.now + SKEW_MS) return out("error", "ساعة الهاتف متقدمة، اضبطها وأعد التسجيل", b.name);
@@ -394,7 +410,7 @@ async function recordStudent(sc: SyncContext, rec: Extract<SyncRecord, { kind: "
 
   let verified = false;
   if (rec.method === "qr") {
-    const check = rec.code ? await checkBookingCode(b.id, rec.code, rec.recordedAt) : "invalid";
+    const check = rec.code ? await checkLoadedBookingCode(b.status, b.qrSecret, rec.code, rec.recordedAt) : "invalid";
     if (check !== "ok") return reject(sc, rec, cp, check, b.name);
     verified = true;
   }
@@ -456,10 +472,6 @@ async function reject(sc: SyncContext, rec: Extract<SyncRecord, { kind: "student
   return { clientUuid: rec.clientUuid, result: reason, message: REJECTION_MESSAGES[reason], name };
 }
 
-async function isFinalAbsent(bookingId: number) {
-  const [row] = await db.select({ id: bookings.id }).from(bookings).where(and(eq(bookings.id, bookingId), finalAbsentCondition()));
-  return Boolean(row);
-}
 
 async function recordStaff(sc: SyncContext, rec: Extract<SyncRecord, { kind: "staff" }>): Promise<SyncOutcome> {
   const out = (result: SyncResult, message: string, name?: string): SyncOutcome => ({ clientUuid: rec.clientUuid, result, message, name });

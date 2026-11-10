@@ -21,7 +21,7 @@ export async function POST(req: Request, ctx: RouteContext<"/dashboard/trips/[id
   if (!Array.isArray(records) || records.length > MAX_SYNC_BATCH) return json({ error: "bad request" }, 400);
 
   try {
-    const r = await syncAttendance(a.actor, a.trip.id, records);
+    const r = await syncAttendance(a.actor, a.trip.id, records, a.trip);
     if (!r.ok) return json({ error: r.error }, 400);
     return json({ outcomes: r.outcomes });
   } catch (e) {

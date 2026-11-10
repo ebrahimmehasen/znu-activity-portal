@@ -35,8 +35,8 @@ export async function visibleTripsCondition(actor: SessionUser): Promise<SQL | u
 
 export async function canViewTrip(actor: SessionUser, activityId: number) {
   if (actor.role !== "supervisor") return true;
-  if ((await getSetting("supervisor_trip_visibility")) === "all") return true;
-  return Boolean(await assignment(actor.id, activityId));
+  const [visibility, a] = await Promise.all([getSetting("supervisor_trip_visibility"), assignment(actor.id, activityId)]);
+  return visibility === "all" || Boolean(a);
 }
 
 export type BookingScope =
@@ -47,9 +47,10 @@ export type BookingScope =
 
 export async function bookingScope(actor: SessionUser, trip: Activity): Promise<BookingScope> {
   if (actor.role !== "supervisor") return { kind: "all" };
-  if (!(await canViewTrip(actor, trip.id))) return { kind: "none" };
+  // One round trip: the visibility setting and the assignment are fetched together.
+  const [visibility, a] = await Promise.all([getSetting("supervisor_trip_visibility"), assignment(actor.id, trip.id)]);
+  if (visibility !== "all" && !a) return { kind: "none" };
   if (!trip.busesEnabled || trip.supervisorScope === "all") return { kind: "all" };
-  const a = await assignment(actor.id, trip.id);
   return { kind: "bus", busId: a?.busId ?? null, requests: can(actor, "confirm_bookings") || can(actor, "cancel_bookings") };
 }
 

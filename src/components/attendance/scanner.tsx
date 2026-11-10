@@ -8,6 +8,7 @@ import { intlLocale } from "@/i18n/config";
 import type { ScanPack, SyncOutcome } from "@/lib/attendance/service";
 import { parseQrPayload } from "@/lib/qr/totp";
 import { fetchQrData, readStored, warmOffline, writeStored } from "@/components/qr/offline-store";
+import { learnServerTime, serverNow } from "@/components/qr/server-clock";
 import { applyOutcomes, listRecords, packKey, putRecords, type QueuedPayload, type QueuedRecord } from "./scan-store";
 
 type Tone = "success" | "warning" | "danger" | "neutral";
@@ -54,6 +55,7 @@ export function Scanner({ tripId }: { tripId: number }) {
   const [banner, setBanner] = useState<Banner | null>(null);
   const [loading, setLoading] = useState(true);
   const syncing = useRef(false);
+  const again = useRef(false);
 
   const reloadRecords = useCallback(async () => {
     try {
@@ -75,41 +77,59 @@ export function Scanner({ tripId }: { tripId: number }) {
     return true;
   }, [tripId]);
 
+  /** Uploads what's queued; false when it should stop (offline, signed out, server error). */
+  const uploadQueued = useCallback(async (): Promise<boolean> => {
+    const queued = (await listRecords(tripId)).filter((r) => r.state === "queued");
+    for (let i = 0; i < queued.length; i += BATCH) {
+      const batch = queued.slice(i, i + BATCH);
+      let res: Response;
+      const sentAt = Date.now();
+      try {
+        res = await fetch(`/dashboard/trips/${tripId}/scan/sync`, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ records: batch.map((r) => r.payload) }),
+        });
+      } catch {
+        setOnline(false);
+        return false;
+      }
+      setOnline(true);
+      learnServerTime(res, sentAt);
+      if (res.status === 401) {
+        setSignedOut(true);
+        return false;
+      }
+      if (!res.ok) return false;
+      const { outcomes } = (await res.json()) as { outcomes: SyncOutcome[] };
+      const updated = await applyOutcomes(batch, outcomes);
+      // The banner follows the latest scan once the server has answered it.
+      setBanner((b) => {
+        const mine = b?.clientUuid && updated.find((u) => u.clientUuid === b.clientUuid);
+        return mine ? { name: mine.name, message: mine.message, tone: RESULT_TONES[mine.state], clientUuid: mine.clientUuid } : b;
+      });
+    }
+    return true;
+  }, [tripId]);
+
   const sync = useCallback(async () => {
-    if (syncing.current) return;
+    // A scan during an upload goes right after it, not on the next timer tick.
+    if (syncing.current) {
+      again.current = true;
+      return;
+    }
     syncing.current = true;
     try {
-      const queued = (await listRecords(tripId)).filter((r) => r.state === "queued");
-      for (let i = 0; i < queued.length; i += BATCH) {
-        const batch = queued.slice(i, i + BATCH);
-        let res: Response;
-        try {
-          res = await fetch(`/dashboard/trips/${tripId}/scan/sync`, {
-            method: "POST",
-            credentials: "same-origin",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ records: batch.map((r) => r.payload) }),
-          });
-        } catch {
-          setOnline(false);
-          return;
-        }
-        setOnline(true);
-        if (res.status === 401) return setSignedOut(true);
-        if (!res.ok) return;
-        const { outcomes } = (await res.json()) as { outcomes: SyncOutcome[] };
-        const updated = await applyOutcomes(batch, outcomes);
-        // The banner follows the latest scan once the server has answered it.
-        setBanner((b) => {
-          const mine = b?.clientUuid && updated.find((u) => u.clientUuid === b.clientUuid);
-          return mine ? { name: mine.name, message: mine.message, tone: RESULT_TONES[mine.state], clientUuid: mine.clientUuid } : b;
-        });
-      }
+      do {
+        again.current = false;
+        if (!(await uploadQueued())) break;
+      } while (again.current);
     } finally {
       syncing.current = false;
       await reloadRecords();
     }
-  }, [tripId, reloadRecords]);
+  }, [uploadQueued, reloadRecords]);
 
   useEffect(() => {
     // localStorage is client-only, so the saved copy is read after hydration.
@@ -164,7 +184,7 @@ export function Scanner({ tripId }: { tripId: number }) {
     if (!s) return setBanner({ message: "الطالب ليس في الرحلة (أو ليس في حافلتك)", tone: "danger" });
     if (s.out && cp.sortOrder > 1) return setBanner({ name: s.name, message: "سُجِّل غيابه نهائيًا في التجمع الأول", tone: "danger" });
     if (isRecorded(bookingId)) return setBanner({ name: s.name, message: "مكرر: مسجَّل من قبل في هذا التجمع", tone: "neutral" });
-    void enqueue(s.name, { kind: "student", clientUuid: crypto.randomUUID(), checkpointId: cp.id, bookingId, method, code, recordedAt: Date.now() });
+    void enqueue(s.name, { kind: "student", clientUuid: crypto.randomUUID(), checkpointId: cp.id, bookingId, method, code, recordedAt: serverNow() });
   }
 
   function onStaff(userId: number, method: "qr" | "manual", code?: string) {
@@ -173,7 +193,7 @@ export function Scanner({ tripId }: { tripId: number }) {
     if (!sup) return setBanner({ message: "هذا المشرف ليس مضافًا إلى الرحلة", tone: "danger" });
     const already = sup.present || records.some((r) => r.payload.kind === "staff" && r.payload.userId === userId && standing(r));
     if (already) return setBanner({ name: sup.name, message: "مكرر: المشرف مسجَّل من قبل", tone: "neutral" });
-    void enqueue(sup.name, { kind: "staff", clientUuid: crypto.randomUUID(), userId, method, code, recordedAt: Date.now() });
+    void enqueue(sup.name, { kind: "staff", clientUuid: crypto.randomUUID(), userId, method, code, recordedAt: serverNow() });
   }
 
   const lastText = useRef<{ text: string; at: number } | null>(null);
@@ -295,6 +315,13 @@ export function Scanner({ tripId }: { tripId: number }) {
   );
 }
 
+/** The Shape Detection API's BarcodeDetector (not in TypeScript's DOM types yet). */
+type BarcodeDetectorLike = { detect(source: CanvasImageSource): Promise<{ rawValue: string }[]> };
+type BarcodeDetectorCtor = {
+  new (options: { formats: string[] }): BarcodeDetectorLike;
+  getSupportedFormats?: () => Promise<string[]>;
+};
+
 function Camera({ onDecoded }: { onDecoded: (text: string) => void }) {
   const t = useT();
   const video = useRef<HTMLVideoElement>(null);
@@ -310,32 +337,61 @@ function Camera({ onDecoded }: { onDecoded: (text: string) => void }) {
     let stopped = false;
     const canvas = document.createElement("canvas");
     const ctx2d = canvas.getContext("2d", { willReadFrequently: true });
+    // The browser's own QR reader (Chrome on Android) is far faster than jsQR; others fall back.
+    const Native = (globalThis as { BarcodeDetector?: BarcodeDetectorCtor }).BarcodeDetector;
+    let native: BarcodeDetectorLike | null = null;
 
-    const tick = () => {
+    /** jsQR on the centre square only (where the QR is held), at most 480 px: much less work per frame. */
+    const decodeWithJsQr = (v: HTMLVideoElement) => {
+      if (!ctx2d) return null;
+      const side = Math.min(v.videoWidth, v.videoHeight) * 0.8;
+      const out = Math.min(480, Math.round(side));
+      canvas.width = out;
+      canvas.height = out;
+      ctx2d.drawImage(v, (v.videoWidth - side) / 2, (v.videoHeight - side) / 2, side, side, 0, 0, out, out);
+      const img = ctx2d.getImageData(0, 0, out, out);
+      return jsQR(img.data, out, out, { inversionAttempts: "dontInvert" })?.data ?? null;
+    };
+
+    const tick = async () => {
       const v = video.current;
-      if (stopped || !v || !ctx2d) return;
+      if (stopped || !v) return;
+      let text: string | null = null;
       if (v.readyState >= 2 && v.videoWidth) {
-        // Downscale for speed; QR codes on a phone screen stay readable.
-        const scale = Math.min(1, 640 / v.videoWidth);
-        canvas.width = Math.round(v.videoWidth * scale);
-        canvas.height = Math.round(v.videoHeight * scale);
-        ctx2d.drawImage(v, 0, 0, canvas.width, canvas.height);
-        const img = ctx2d.getImageData(0, 0, canvas.width, canvas.height);
-        const found = jsQR(img.data, img.width, img.height, { inversionAttempts: "dontInvert" });
-        if (found?.data) handler.current(found.data);
+        try {
+          text = native ? ((await native.detect(v))[0]?.rawValue ?? null) : decodeWithJsQr(v);
+        } catch {
+          native = null; // the native reader failed on this device: use jsQR from now on
+        }
+        if (text) handler.current(text);
       }
-      timer = setTimeout(tick, 200);
+      // Next frame right away; a short pause only after a read, so one QR isn't read many times a second.
+      if (!stopped) timer = setTimeout(() => void tick(), text ? 300 : native ? 60 : 120);
     };
 
     (async () => {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+        if (Native) {
+          try {
+            if ((await Native.getSupportedFormats?.())?.includes("qr_code") ?? true) native = new Native({ formats: ["qr_code"] });
+          } catch {
+            native = null;
+          }
+        }
+        stream = await navigator.mediaDevices.getUserMedia({
+          // A sharper picture reads a phone-screen QR from further away.
+          video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        });
         if (stopped) return stream.getTracks().forEach((t) => t.stop());
+        // Keep refocusing as students move their phones (ignored where unsupported).
+        const track = stream.getVideoTracks()[0];
+        track?.applyConstraints({ advanced: [{ focusMode: "continuous" } as MediaTrackConstraintSet] }).catch(() => {});
         if (video.current) {
           video.current.srcObject = stream;
           await video.current.play().catch(() => {});
         }
-        tick();
+        void tick();
       } catch {
         setError("تعذّر فتح الكاميرا. اسمح باستخدام الكاميرا من إعدادات المتصفح، أو سجِّل من «الكشف».");
       }

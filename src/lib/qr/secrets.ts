@@ -70,8 +70,13 @@ export type QrCheck = "ok" | "invalid" | "revoked";
  */
 export async function checkBookingCode(bookingId: number, code: string, scannedAtMs: number): Promise<QrCheck> {
   const [b] = await db.select({ status: bookings.status, s: bookings.qrSecret }).from(bookings).where(eq(bookings.id, bookingId));
-  if (!b || b.status !== "confirmed" || !b.s) return "revoked";
-  return (await verifyTotp(decryptSecret(b.s), code, scannedAtMs)) ? "ok" : "invalid";
+  return b ? checkLoadedBookingCode(b.status, b.s, code, scannedAtMs) : "revoked";
+}
+
+/** Same check when the booking's status and stored secret are already loaded (no query). */
+export async function checkLoadedBookingCode(status: string, stored: string | null, code: string, scannedAtMs: number): Promise<QrCheck> {
+  if (status !== "confirmed" || !stored) return "revoked";
+  return (await verifyTotp(decryptSecret(stored), code, scannedAtMs)) ? "ok" : "invalid";
 }
 
 export async function checkSupervisorCode(userId: number, code: string, scannedAtMs: number): Promise<QrCheck> {

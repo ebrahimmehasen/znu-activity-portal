@@ -2,6 +2,8 @@
  * Device-side copy of the QR secrets so the code works with no network (plan §7).
  * Cleared on logout; the server re-sends the current set on every online visit.
  */
+import { learnServerTime } from "./server-clock";
+
 export const STUDENT_QR_KEY = "znu.qr.student.v1";
 export const STAFF_QR_KEY = "znu.qr.staff.v1";
 
@@ -33,7 +35,9 @@ export function clearStored(key: string) {
 /** Fetches fresh data; null when offline, "signed-out" when the session is gone. */
 export async function fetchQrData<T>(url: string): Promise<T | "signed-out" | null> {
   try {
+    const sentAt = Date.now();
     const res = await fetch(url, { cache: "no-store", credentials: "same-origin" });
+    learnServerTime(res, sentAt);
     if (res.status === 401) return "signed-out";
     if (!res.ok) return null;
     return (await res.json()) as T;
