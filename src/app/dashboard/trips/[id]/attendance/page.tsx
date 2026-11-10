@@ -211,6 +211,7 @@ export default async function AttendancePage({ params, searchParams }: PageProps
                             {r.facultyName} · {t(YEAR_LABELS[r.year])}
                           </span>
                           {r.busName && <span>{r.busName}</span>}
+                          {r.pickupName && <span>📍 {r.pickupName}</span>}
                           <a href={`tel:${r.phone}`} className="text-primary" dir="ltr">
                             {r.phone}
                           </a>

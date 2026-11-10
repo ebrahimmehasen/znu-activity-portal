@@ -103,6 +103,7 @@ export default async function TripReportPage({ params }: PageProps<"/dashboard/t
                 <th className={th}>{t("الكلية")}</th>
                 <th className={th}>{t("الفرقة")}</th>
                 <th className={th}>{t("الهاتف")}</th>
+                {r.showPickup && <th className={th}>{t("مكان التجمع")}</th>}
                 {r.showBus && <th className={th}>{t("الحافلة")}</th>}
                 {r.showPaid && <th className={th}>{t("الدفع")}</th>}
                 {r.checkpoints.map((cp) => (
@@ -124,6 +125,7 @@ export default async function TripReportPage({ params }: PageProps<"/dashboard/t
                       {row.phone}
                     </a>
                   </td>
+                  {r.showPickup && <td className={td}>{row.pickup}</td>}
                   {r.showBus && <td className={td}>{row.bus}</td>}
                   {r.showPaid && <td className={td}>{row.paid}</td>}
                   {row.cells.map((c, i) => (

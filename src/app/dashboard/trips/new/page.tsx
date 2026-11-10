@@ -32,6 +32,7 @@ export default async function NewTripPage() {
           busesEnabled: false,
           supervisorScope: "bus",
           schedule: [],
+          pickupPoints: [],
         }}
       />
     </>

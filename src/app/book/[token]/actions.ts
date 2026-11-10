@@ -11,7 +11,7 @@ export async function submitBookingAction(token: string, formData: FormData): Pr
   // Honeypot: real students never see or fill this field.
   if (formData.get("website")) return { ok: true, message: RECEIVED };
 
-  const r = await submitPublicBooking(String(token), studentFormInput(formData), await getRequestCtx());
+  const r = await submitPublicBooking(String(token), { ...studentFormInput(formData), pickupPointId: formData.get("pickupPointId") }, await getRequestCtx());
   if (!r.ok) return { ok: false, message: r.error, errors: r.errors };
   return r.status === "waitlisted"
     ? { ok: true, message: `اكتمل العدد، فسُجِّلت في قائمة الانتظار برقم ${r.position}. سنتواصل معك إذا توفّر مكان.` }

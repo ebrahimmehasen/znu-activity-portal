@@ -74,6 +74,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "booking.data_applied": "تحديث بيانات طالب من الحجز",
   "booking.data_kept": "الاحتفاظ ببيانات الطالب القديمة",
   "booking.bus_assigned": "تعيين طالب على حافلة",
+  "booking.pickup_set": "تغيير مكان تجمع طالب",
   "activity.started": "بدء الرحلة",
   "activity.ended": "إنهاء الرحلة",
   "activity.reopened": "إعادة رحلة منتهية إلى جارية",

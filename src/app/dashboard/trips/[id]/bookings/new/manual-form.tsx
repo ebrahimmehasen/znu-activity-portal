@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import { PickupField, type PickupOption } from "@/components/pickup-field";
 import { StudentFields } from "@/components/student-fields";
 import { Alert, Button } from "@/components/ui";
 import type { FormState } from "@/lib/form-state";
@@ -9,12 +10,14 @@ import { useT } from "@/i18n/client";
 export function ManualBookingForm({
   action,
   faculties,
+  pickupPoints,
   feeAmount,
   paymentRequired,
   canOverrideSameDay,
 }: {
   action: (fd: FormData) => Promise<FormState>;
   faculties: { id: number; name: string }[];
+  pickupPoints: PickupOption[];
   feeAmount: number | null;
   paymentRequired: boolean;
   canOverrideSameDay: boolean;
@@ -44,6 +47,7 @@ export function ManualBookingForm({
     >
       {state.message && <Alert tone={state.ok ? "success" : "danger"}>{state.message}</Alert>}
       <StudentFields faculties={faculties} errors={state.ok ? {} : err} />
+      <PickupField points={pickupPoints} error={state.ok ? undefined : err.pickupPointId} />
 
       {feeAmount !== null && (
         <label className="flex items-start gap-2 text-sm">

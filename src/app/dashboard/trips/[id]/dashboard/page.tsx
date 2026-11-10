@@ -131,6 +131,18 @@ export default async function TripDashboardPage({ params, searchParams }: PagePr
                     {cp.open ? <Badge tone="success">{t("مفتوح")}</Badge> : <Badge>{cp.openedAt ? t("مغلق") : t("لم يُفتح بعد")}</Badge>}
                   </div>
                   <TallyLine tl={d.totals[i]} first={cp.sortOrder === 1} />
+                  {cp.sortOrder === 1 && d.pickupGroups.length > 0 && (
+                    <div className="space-y-1 rounded-lg bg-background p-2">
+                      {d.pickupGroups.map((g) => (
+                        <div key={g.key} className="flex flex-wrap items-baseline gap-x-3">
+                          <span className="w-28 shrink-0 text-xs font-semibold">
+                            📍 {t(g.label)} ({g.count})
+                          </span>
+                          <TallyLine tl={g.tallies[i]} first />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   {d.groups.length > 0 && (
                     <div className="space-y-1 rounded-lg bg-background p-2">
                       {d.groups.map((g) => (
@@ -202,6 +214,7 @@ export default async function TripDashboardPage({ params, searchParams }: PagePr
                         {r.facultyName} · {t(YEAR_LABELS[r.year])}
                       </span>
                       {r.busName && <span>{r.busName}</span>}
+                      {r.pickupName && <span>📍 {r.pickupName}</span>}
                       <a href={`tel:${r.phone}`} className="ltr-nums text-primary" dir="ltr">
                         {r.phone}
                       </a>

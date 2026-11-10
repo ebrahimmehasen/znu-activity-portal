@@ -1,6 +1,15 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { attendances, bookings, buses, faculties, students, type Activity, type Attendance } from "@/db/schema";
+import {
+  attendances,
+  bookings,
+  pickupPoints,
+  buses,
+  faculties,
+  students,
+  type Activity,
+  type Attendance,
+} from "@/db/schema";
 import type { SessionUser } from "@/lib/auth/service";
 import { can } from "@/lib/authz";
 import { ForbiddenError } from "@/lib/errors";
@@ -22,7 +31,7 @@ export async function tripDashboard(actor: SessionUser, trip: Activity) {
   if (!can(actor, "view_trip_dashboard")) throw new ForbiddenError();
   const scope = await bookingScope(actor, trip);
 
-  const [cps, roster, tripBuses] = await Promise.all([
+  const [cps, roster, tripBuses, points] = await Promise.all([
     listCheckpoints(trip.id),
     db
       .select({
@@ -33,6 +42,7 @@ export async function tripDashboard(actor: SessionUser, trip: Activity) {
         facultyName: faculties.name,
         busId: bookings.busId,
         paidAt: bookings.paidAt,
+        pickupPointId: bookings.pickupPointId,
       })
       .from(bookings)
       .innerJoin(students, eq(students.id, bookings.studentId))
@@ -40,6 +50,7 @@ export async function tripDashboard(actor: SessionUser, trip: Activity) {
       .where(and(eq(bookings.activityId, trip.id), eq(bookings.status, "confirmed"), scopeCondition(scope)))
       .orderBy(asc(students.name)),
     trip.busesEnabled ? db.select().from(buses).where(eq(buses.activityId, trip.id)).orderBy(asc(buses.id)) : Promise.resolve([]),
+    db.select().from(pickupPoints).where(eq(pickupPoints.activityId, trip.id)).orderBy(asc(pickupPoints.sortOrder), asc(pickupPoints.id)),
   ]);
 
   const records: Attendance[] =
@@ -52,6 +63,7 @@ export async function tripDashboard(actor: SessionUser, trip: Activity) {
   const byKey = new Map(records.map((r) => [`${r.checkpointId}:${r.bookingId}`, r]));
   const first = cps.find((c) => c.sortOrder === 1);
   const busName = new Map(tripBuses.map((b) => [b.id, b.name]));
+  const pickupName = new Map(points.map((p) => [p.id, p.name]));
 
   const rows = roster.map((s) => {
     const finalAbsent = first ? byKey.get(`${first.id}:${s.bookingId}`)?.status === "absent" : false;
@@ -59,7 +71,8 @@ export async function tripDashboard(actor: SessionUser, trip: Activity) {
     const cells: DashboardCell[] = recs.map((r) => (r === undefined ? null : rowState(r)));
     // When each one was scanned or marked (null: no record, or marked absent).
     const times = recs.map((r) => (r && r.status !== "absent" ? r.recordedAt : null));
-    return { ...s, busName: s.busId ? (busName.get(s.busId) ?? null) : null, finalAbsent, cells, times };
+    const pickup = s.pickupPointId ? (pickupName.get(s.pickupPointId) ?? null) : null;
+    return { ...s, busName: s.busId ? (busName.get(s.busId) ?? null) : null, pickupName: pickup, finalAbsent, cells, times };
   });
 
   const tally = (subset: typeof rows): CheckpointTally[] =>
@@ -74,6 +87,14 @@ export async function tripDashboard(actor: SessionUser, trip: Activity) {
         ].filter((g) => g.rows.length > 0)
       : [];
 
+  // Who is still missing at each pickup point matters for the first gathering.
+  const pickupGroups = points.length
+    ? [
+        ...points.map((p) => ({ key: `pickup-${p.id}`, label: p.name, rows: rows.filter((r) => r.pickupPointId === p.id) })),
+        { key: "no-pickup", label: "بدون مكان تجمع", rows: rows.filter((r) => r.pickupPointId === null) },
+      ].filter((g) => g.rows.length > 0)
+    : [];
+
   return {
     checkpoints: cps.map((cp) => ({ ...cp, open: isOpen(cp) && !(cp.sortOrder === 1 && trip.rosterLockedAt) })),
     rows,
@@ -81,6 +102,7 @@ export async function tripDashboard(actor: SessionUser, trip: Activity) {
     finalAbsent: rows.filter((r) => r.finalAbsent).length,
     totals: tally(rows),
     groups: groups.map((g) => ({ key: g.key, label: g.label, count: g.rows.length, tallies: tally(g.rows) })),
+    pickupGroups: pickupGroups.map((g) => ({ key: g.key, label: g.label, count: g.rows.length, tallies: tally(g.rows) })),
     scopedToBus: scope.kind === "bus",
   };
 }

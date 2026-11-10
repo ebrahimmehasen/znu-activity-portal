@@ -50,6 +50,13 @@
       "when": 1793375437842,
       "tag": "0006_announcements",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794330942240,
+      "tag": "0007_pickup_points",
+      "breakpoints": true
     }
   ]
 }

@@ -7,7 +7,7 @@ import { getI18n, getT, getTheme } from "@/i18n/server";
 import { getPublicTrip } from "@/lib/bookings/service";
 import { formatDate, formatTime } from "@/lib/dates";
 import { listFaculties } from "@/lib/faculties/service";
-import { getSchedule } from "@/lib/trips/service";
+import { getSchedule, listPickupPoints } from "@/lib/trips/service";
 import { submitBookingAction } from "./actions";
 import { BookingForm } from "./booking-form";
 
@@ -27,7 +27,7 @@ export default async function BookPage({ params }: PageProps<"/book/[token]">) {
   const data = await getPublicTrip(token);
   if (!data) notFound();
   const { trip, availability } = data;
-  const [schedule, faculties] = await Promise.all([getSchedule(trip.id), listFaculties({ activeOnly: true })]);
+  const [schedule, faculties, points] = await Promise.all([getSchedule(trip.id), listFaculties({ activeOnly: true }), listPickupPoints(trip.id)]);
   const times = [
     trip.startTime && t("الانطلاق {time}", { time: formatTime(trip.startTime, locale) }),
     trip.endTime && t("العودة {time}", { time: formatTime(trip.endTime, locale) }),
@@ -75,7 +75,7 @@ export default async function BookPage({ params }: PageProps<"/book/[token]">) {
       <Card>
         <h2 className="mb-4 font-semibold">{t("بيانات الحجز")}</h2>
         {availability === "open" || availability === "waitlist" ? (
-          <BookingForm action={submitBookingAction.bind(null, token)} faculties={faculties} waitlist={availability === "waitlist"} />
+          <BookingForm action={submitBookingAction.bind(null, token)} faculties={faculties} pickupPoints={points.map((p) => ({ id: p.id, name: p.name, time: p.time }))} waitlist={availability === "waitlist"} />
         ) : (
           <p className="py-6 text-center text-muted">{t(CLOSED_MESSAGES[availability])}</p>
         )}

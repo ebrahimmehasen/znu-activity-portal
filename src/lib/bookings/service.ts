@@ -1,6 +1,16 @@
 import { and, asc, count, desc, eq, ilike, inArray, isNotNull, isNull, max, ne, or, sql, sum, type SQL } from "drizzle-orm";
 import { db, type DB } from "@/db";
-import { activities, bookings, buses, faculties, students, type Activity, type BookingStatus, type Student } from "@/db/schema";
+import {
+  activities,
+  bookings,
+  pickupPoints,
+  buses,
+  faculties,
+  students,
+  type Activity,
+  type BookingStatus,
+  type Student,
+} from "@/db/schema";
 import { recordAudit, type RequestCtx } from "@/lib/audit";
 import type { SessionUser } from "@/lib/auth/service";
 import { can, type Ability } from "@/lib/authz";
@@ -81,6 +91,20 @@ function differingFields(student: Student, data: StudentData) {
 
 const studentFields = (d: StudentData) => ({ name: d.name, phone: d.phone, facultyId: d.facultyId, year: d.year });
 
+/** Message when a trip has pickup points and none (or a foreign one) was chosen. */
+const PICKUP_REQUIRED = "اختر مكان التجمع";
+
+/**
+ * The chosen pickup point, checked against the trip's list: null when the trip has none,
+ * undefined when the trip has points and the choice is missing or not one of them.
+ */
+async function resolvePickup(tx: Tx, activityId: number, raw: unknown): Promise<number | null | undefined> {
+  const points = await tx.select({ id: pickupPoints.id }).from(pickupPoints).where(eq(pickupPoints.activityId, activityId));
+  if (!points.length) return null;
+  const id = Number(raw);
+  return points.some((p) => p.id === id) ? id : undefined;
+}
+
 async function findOrCreateStudent(tx: Tx, data: StudentData) {
   const [existing] = await tx.select().from(students).where(eq(students.nationalId, data.nationalId));
   if (existing) return { student: existing, created: false };
@@ -119,7 +143,7 @@ const EXISTING_BOOKING_MESSAGES: Record<BookingStatus, string> = {
 
 export type PublicBookingResult = Result<{ status: "pending" | "waitlisted"; position: number | null }> & { locked?: number };
 
-export async function submitPublicBooking(token: string, input: StudentInput, ctx: RequestCtx): Promise<PublicBookingResult> {
+export async function submitPublicBooking(token: string, input: StudentInput & { pickupPointId?: unknown }, ctx: RequestCtx): Promise<PublicBookingResult> {
   const ipKey = `booking:ip:${ctx.ip ?? "unknown"}`;
   const { ip, nationalId: nid } = PUBLIC_BOOKING_LIMITS;
   const ipLocked = await lockedFor(ipKey, ip.limit);
@@ -143,6 +167,8 @@ export async function submitPublicBooking(token: string, input: StudentInput, ct
     const state = availability(trip, await occupiedSeats(tx, trip.id));
     if (state === "closed") return fail("الحجز في هذه الرحلة مغلق");
     if (state === "full") return fail("اكتمل العدد وأُغلق الحجز");
+    const pickupPointId = await resolvePickup(tx, trip.id, input.pickupPointId);
+    if (pickupPointId === undefined) return { ok: false as const, errors: { pickupPointId: PICKUP_REQUIRED } };
 
     const { student, created } = await findOrCreateStudent(tx, data);
     const [existing] = await tx
@@ -179,6 +205,7 @@ export async function submitPublicBooking(token: string, input: StudentInput, ct
         status,
         source: "form",
         waitlistPosition: position,
+        pickupPointId,
         submittedData: dataHandling === "flagged" ? studentFields(data) : null,
       })
       .returning({ id: bookings.id });
@@ -209,7 +236,7 @@ export async function submitPublicBooking(token: string, input: StudentInput, ct
 
 // ─── Staff actions ───────────────────────────────────────────────────────────
 
-export type ManualBookingInput = StudentInput & { allowSameDay?: boolean; paid?: boolean };
+export type ManualBookingInput = StudentInput & { allowSameDay?: boolean; paid?: boolean; pickupPointId?: unknown };
 
 /** Staff-entered bookings go straight to confirmed (plan §5.2). */
 export async function addManualBooking(
@@ -246,6 +273,8 @@ export async function addManualBooking(
       return { ok: false as const, errors: { paid: "التأكيد في هذه الرحلة بعد الدفع، حدِّد أن الطالب دفع" } };
     }
     if ((await occupiedSeats(tx, trip.id)) >= trip.capacity) return fail("الرحلة مكتملة. زِد الحد الأقصى أولًا");
+    const pickupPointId = await resolvePickup(tx, trip.id, input.pickupPointId);
+    if (pickupPointId === undefined) return { ok: false as const, errors: { pickupPointId: PICKUP_REQUIRED } };
 
     const { student, created } = await findOrCreateStudent(tx, data);
     const [existing] = await tx
@@ -286,6 +315,7 @@ export async function addManualBooking(
       submittedData: null,
       handledBy: actor.id,
       handledAt: new Date(),
+      pickupPointId,
       ...(ownBus !== null ? { busId: ownBus } : {}),
       ...payment,
     };
@@ -497,6 +527,32 @@ export async function resolveSubmittedData(actor: SessionUser, id: number, choic
   return { ok: true };
 }
 
+/** Admins change a booking's pickup point (or clear it) while the trip hasn't ended. */
+export async function setPickupPoint(actor: SessionUser, id: number, pointId: number | null, ctx: RequestCtx): Promise<Result> {
+  assertCan(actor, "manage_activities");
+  const row = await loadEditable(actor, id);
+  if ("error" in row) return fail(row.error!);
+  if (pointId !== null) {
+    const [p] = await db
+      .select({ id: pickupPoints.id })
+      .from(pickupPoints)
+      .where(and(eq(pickupPoints.id, pointId), eq(pickupPoints.activityId, row.trip.id)));
+    if (!p) return fail("مكان التجمع غير موجود");
+  }
+  await db.update(bookings).set({ pickupPointId: pointId }).where(eq(bookings.id, id));
+  await recordAudit(
+    {
+      actor: { type: "user", id: actor.id },
+      action: "booking.pickup_set",
+      subjectType: "booking",
+      subjectId: id,
+      meta: { activityId: row.trip.id, from: row.booking.pickupPointId, to: pointId },
+    },
+    ctx,
+  );
+  return { ok: true };
+}
+
 export async function setBookingOpen(actor: SessionUser, activityId: number, open: boolean, ctx: RequestCtx): Promise<Result> {
   assertCan(actor, "manage_activities");
   const [trip] = await db.select().from(activities).where(eq(activities.id, activityId));
@@ -529,6 +585,7 @@ export type BookingFilters = {
   paid?: "paid" | "unpaid";
   flagged?: boolean;
   busId?: number | "none";
+  pickupPointId?: number | "none";
   page?: number;
   /** Supervisors' visibility limit; see src/lib/supervisors/scope.ts. */
   scope?: BookingScope;
@@ -544,6 +601,8 @@ export async function listBookings(activityId: number, f: BookingFilters = {}) {
   if (f.flagged) conditions.push(isNotNull(bookings.submittedData));
   if (f.busId === "none") conditions.push(isNull(bookings.busId));
   else if (f.busId) conditions.push(eq(bookings.busId, f.busId));
+  if (f.pickupPointId === "none") conditions.push(isNull(bookings.pickupPointId));
+  else if (f.pickupPointId) conditions.push(eq(bookings.pickupPointId, f.pickupPointId));
 
   const q = toLatinDigits(f.q?.trim() ?? "").replace(/[%_\\]/g, "");
   if (q) {
@@ -561,11 +620,13 @@ export async function listBookings(activityId: number, f: BookingFilters = {}) {
       student: students,
       facultyName: faculties.name,
       busName: buses.name,
+      pickupName: pickupPoints.name,
     })
     .from(bookings)
     .innerJoin(students, eq(students.id, bookings.studentId))
     .innerJoin(faculties, eq(faculties.id, students.facultyId))
     .leftJoin(buses, eq(buses.id, bookings.busId))
+    .leftJoin(pickupPoints, eq(pickupPoints.id, bookings.pickupPointId))
     .where(and(...conditions))
     .orderBy(
       // Waitlist in queue order, everything else newest first.

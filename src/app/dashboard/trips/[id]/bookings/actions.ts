@@ -11,6 +11,7 @@ import {
   resolveSubmittedData,
   setBookingOpen,
   setPayment,
+  setPickupPoint,
 } from "@/lib/bookings/service";
 import { assignBus, autoAssignBuses } from "@/lib/buses/service";
 import type { FormState } from "@/lib/form-state";
@@ -59,6 +60,16 @@ export async function assignBusAction(_prev: FormState, fd: FormData): Promise<F
   return { ok: true };
 }
 
+export async function setPickupAction(_prev: FormState, fd: FormData): Promise<FormState> {
+  const actor = await requireUser();
+  const activityId = idSchema.parse(fd.get("activityId"));
+  const raw = fd.get("pickupPointId");
+  const r = await setPickupPoint(actor, idSchema.parse(fd.get("id")), raw ? idSchema.parse(raw) : null, await getRequestCtx());
+  if (!r.ok) return { ok: false, message: r.error };
+  refresh(activityId);
+  return { ok: true };
+}
+
 export async function autoAssignAction(_prev: FormState, fd: FormData): Promise<FormState> {
   const actor = await requireUser();
   const activityId = idSchema.parse(fd.get("activityId"));
@@ -82,7 +93,7 @@ export async function addManualAction(activityId: number, fd: FormData): Promise
   const r = await addManualBooking(
     actor,
     idSchema.parse(activityId),
-    { ...studentFormInput(fd), allowSameDay: fd.get("allowSameDay") === "on", paid: fd.get("paid") === "on" },
+    { ...studentFormInput(fd), allowSameDay: fd.get("allowSameDay") === "on", paid: fd.get("paid") === "on", pickupPointId: fd.get("pickupPointId") },
     await getRequestCtx(),
   );
   if (!r.ok) return { ok: false, message: r.error, errors: r.errors };

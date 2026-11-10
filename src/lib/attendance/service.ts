@@ -6,6 +6,7 @@ import {
   activitySupervisors,
   attendances,
   bookings,
+  pickupPoints,
   buses,
   checkpoints,
   faculties,
@@ -232,12 +233,14 @@ export async function checkpointRoster(trip: Activity, cp: Checkpoint, scope: Bo
       year: students.year,
       facultyName: faculties.name,
       busName: buses.name,
+      pickupName: pickupPoints.name,
       record: attendances,
     })
     .from(bookings)
     .innerJoin(students, eq(students.id, bookings.studentId))
     .innerJoin(faculties, eq(faculties.id, students.facultyId))
     .leftJoin(buses, eq(buses.id, bookings.busId))
+    .leftJoin(pickupPoints, eq(pickupPoints.id, bookings.pickupPointId))
     .leftJoin(attendances, and(eq(attendances.bookingId, bookings.id), eq(attendances.checkpointId, cp.id), activeRecord()))
     .where(
       and(
@@ -693,7 +696,7 @@ export type ScanPack = {
   trip: { id: number; title: string; date: string; status: Activity["status"]; rosterLocked: boolean };
   checkpoints: { id: number; name: string; sortOrder: number; open: boolean; openedAt: number | null; closedAt: number | null }[];
   /** Names and contact only; no national IDs and no QR secrets leave the server. */
-  students: { bookingId: number; name: string; faculty: string; year: number; phone: string; bus: string | null; out: boolean }[];
+  students: { bookingId: number; name: string; faculty: string; year: number; phone: string; bus: string | null; pickup: string | null; out: boolean }[];
   /** Booking ids with a standing record, per gathering, so the scanner flags repeats offline. */
   recorded: Record<number, number[]>;
   supervisors: { userId: number; name: string; present: boolean }[] | null;
@@ -713,11 +716,13 @@ export async function scanPack(actor: SessionUser, trip: Activity): Promise<Scan
         year: students.year,
         phone: students.phone,
         bus: buses.name,
+        pickup: pickupPoints.name,
       })
       .from(bookings)
       .innerJoin(students, eq(students.id, bookings.studentId))
       .innerJoin(faculties, eq(faculties.id, students.facultyId))
       .leftJoin(buses, eq(buses.id, bookings.busId))
+      .leftJoin(pickupPoints, eq(pickupPoints.id, bookings.pickupPointId))
       .where(and(eq(bookings.activityId, trip.id), eq(bookings.status, "confirmed"), scopeCondition(scope)))
       .orderBy(asc(students.name)),
     db

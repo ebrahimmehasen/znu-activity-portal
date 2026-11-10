@@ -4,6 +4,7 @@ import { useState, useTransition, type ReactNode } from "react";
 import { Alert, Button, Card, Field, Input } from "@/components/ui";
 import type { FormState } from "@/lib/form-state";
 import { saveTrip } from "./actions";
+import { PickupPointsEditor, type PickupPointValue } from "./pickup-points-editor";
 import { useT } from "@/i18n/client";
 
 export type TripFormValues = {
@@ -24,6 +25,7 @@ export type TripFormValues = {
   busesEnabled: boolean;
   supervisorScope: "bus" | "all";
   schedule: { time: string; title: string; notes: string }[];
+  pickupPoints: PickupPointValue[];
   dateLocked?: boolean;
 };
 
@@ -147,6 +149,8 @@ export function TripForm({ initial }: { initial: TripFormValues }) {
           </div>
         ))}
       </Card>
+
+      <PickupPointsEditor initial={initial.pickupPoints} error={err.pickupPoints} />
 
       <Card className="space-y-5">
         <h2 className="font-semibold">{t("إعدادات الرحلة")}</h2>

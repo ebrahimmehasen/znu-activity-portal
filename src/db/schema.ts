@@ -167,6 +167,21 @@ export const activityScheduleItems = pgTable(
   (t) => [index("activity_schedule_items_activity_idx").on(t.activityId, t.sortOrder)],
 );
 
+// Where students can join the trip at its first gathering; each student picks one when booking.
+export const pickupPoints = pgTable(
+  "pickup_points",
+  {
+    id: serial("id").primaryKey(),
+    activityId: integer("activity_id")
+      .notNull()
+      .references(() => activities.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 150 }).notNull(),
+    time: time("time"),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (t) => [index("pickup_points_activity_idx").on(t.activityId, t.sortOrder)],
+);
+
 export const buses = pgTable(
   "buses",
   {
@@ -250,6 +265,8 @@ export const bookings = pgTable(
     // Form data that differed from the stored student, kept until an admin picks a version.
     submittedData: jsonb("submitted_data").$type<{ name: string; phone: string; facultyId: number; year: number }>(),
     busId: integer("bus_id").references(() => buses.id, { onDelete: "set null" }),
+    // Removing a pickup point from the trip leaves its bookings without one.
+    pickupPointId: integer("pickup_point_id").references(() => pickupPoints.id, { onDelete: "set null" }),
     paidAmount: numeric("paid_amount", { precision: 10, scale: 2 }),
     paidAt: timestamp("paid_at", { withTimezone: true }),
     paymentRecordedBy: integer("payment_recorded_by").references(() => users.id),
@@ -438,3 +455,4 @@ export type AttendanceStatus = (typeof attendanceStatus.enumValues)[number];
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type Announcement = typeof announcements.$inferSelect;
 export type AnnouncementAudience = (typeof announcementAudience.enumValues)[number];
+export type PickupPoint = typeof pickupPoints.$inferSelect;

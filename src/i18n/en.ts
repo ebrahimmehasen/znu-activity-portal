@@ -3,6 +3,22 @@
  * `{name}` placeholders are filled in by `t(text, vars)`.
  */
 export const EN: Record<string, string> = {
+  "أماكن التجمع": "Pickup points",
+  "يختار الطالب واحدًا منها عند الحجز. اتركها فارغة إذا كان التجمع في مكان واحد.": "Students choose one when booking. Leave empty if everyone meets in one place.",
+  "مكان": "Place",
+  "لا توجد أماكن تجمع؛ لن يُطلب من الطالب اختيار مكان.": "No pickup points; students won't be asked to choose one.",
+  "مثلًا: بوابة الجامعة الرئيسية": "e.g. University main gate",
+  "اسم مكان التجمع": "Pickup point name",
+  "موعد التجمع": "Pickup time",
+  "حذف المكان": "Remove point",
+  "مكان التجمع": "Pickup point",
+  "اختر مكان التجمع": "Choose a pickup point",
+  "بدون مكان تجمع": "No pickup point",
+  "كل أماكن التجمع": "All pickup points",
+  "أدخل اسم مكان التجمع": "Enter the pickup point name",
+  "الحد الأقصى 30 مكانًا": "At most 30 points",
+  "مكان التجمع غير موجود": "Pickup point not found",
+  "تغيير مكان تجمع طالب": "Student's pickup point changed",
   "شعار جامعة الزقازيق الأهلية": "Zagazig National University logo",
   "{amount} جنيه": "{amount} EGP",
   "{buses} حافلة · {seats} مقعد": "{buses} buses · {seats} seats",

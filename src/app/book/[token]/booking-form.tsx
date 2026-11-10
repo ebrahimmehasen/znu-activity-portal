@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { PickupField, type PickupOption } from "@/components/pickup-field";
 import { StudentFields } from "@/components/student-fields";
 import { Alert, Button } from "@/components/ui";
 import type { FormState } from "@/lib/form-state";
@@ -9,10 +10,12 @@ import { useT } from "@/i18n/client";
 export function BookingForm({
   action,
   faculties,
+  pickupPoints,
   waitlist,
 }: {
   action: (fd: FormData) => Promise<FormState>;
   faculties: { id: number; name: string }[];
+  pickupPoints: PickupOption[];
   waitlist: boolean;
 }) {
   const t = useT();
@@ -44,6 +47,7 @@ export function BookingForm({
       {waitlist && <Alert>{t("اكتمل العدد. إذا حجزت الآن فستدخل قائمة الانتظار.")}</Alert>}
       {state.message && <Alert>{state.message}</Alert>}
       <StudentFields faculties={faculties} errors={state.errors} />
+      <PickupField points={pickupPoints} error={state.errors?.pickupPointId} />
       <input type="text" name="website" tabIndex={-1} autoComplete="off" aria-hidden className="hidden" />
       <Button type="submit" className="w-full" disabled={pending}>
         {pending ? t("جارٍ الإرسال…") : waitlist ? t("سجِّلني في قائمة الانتظار") : t("احجز")}

@@ -64,11 +64,12 @@ export async function tripReport(actor: SessionUser, trip: Activity, locale: Loc
     year: t(YEAR_LABELS[r.year]),
     phone: r.phone,
     bus: r.busName ?? "",
+    pickup: r.pickupName ?? "",
     paid: r.paidAt ? t("دفع") : t("لم يدفع"),
     cells: r.cells.map((c, i) => (c === null ? "—" : r.times[i] ? `${t(CELL_LABELS[c])} ${formatClock(r.times[i], locale)}` : t(CELL_LABELS[c]))),
   }));
 
-  return { trip, locale, summary, checkpoints, rows, showBus: trip.busesEnabled, showPaid: trip.feeEnabled };
+  return { trip, locale, summary, checkpoints, rows, showBus: trip.busesEnabled, showPaid: trip.feeEnabled, showPickup: d.pickupGroups.length > 0 };
 }
 
 export type TripReport = Awaited<ReturnType<typeof tripReport>>;

@@ -6,7 +6,7 @@ import { Card, PageHeader } from "@/components/ui";
 import { requireAbility } from "@/lib/auth/session";
 import { listFaculties } from "@/lib/faculties/service";
 import { canViewTrip } from "@/lib/supervisors/scope";
-import { getTrip } from "@/lib/trips/service";
+import { getTrip, listPickupPoints } from "@/lib/trips/service";
 import { addManualAction } from "../actions";
 import { ManualBookingForm } from "./manual-form";
 
@@ -19,7 +19,7 @@ export default async function NewBookingPage({ params }: PageProps<"/dashboard/t
   const id = Number((await params).id);
   const trip = Number.isInteger(id) ? await getTrip(id) : null;
   if (!trip || trip.status === "finished" || !(await canViewTrip(actor, trip.id))) notFound();
-  const faculties = await listFaculties({ activeOnly: true });
+  const [faculties, points] = await Promise.all([listFaculties({ activeOnly: true }), listPickupPoints(trip.id)]);
   const t = await getT();
 
   return (
@@ -37,6 +37,7 @@ export default async function NewBookingPage({ params }: PageProps<"/dashboard/t
         <ManualBookingForm
           action={addManualAction.bind(null, trip.id)}
           faculties={faculties}
+          pickupPoints={points.map((p) => ({ id: p.id, name: p.name, time: p.time }))}
           feeAmount={trip.feeEnabled && actor.role !== "supervisor" ? Number(trip.feeAmount) : null}
           paymentRequired={trip.paymentRequired}
           canOverrideSameDay={actor.role !== "supervisor"}

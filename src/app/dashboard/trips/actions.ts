@@ -11,10 +11,14 @@ const idSchema = z.coerce.number().int().positive();
 
 function formToInput(fd: FormData): TripInput {
   const s = (k: string) => String(fd.get(k) ?? "");
-  let schedule: unknown = [];
-  try {
-    schedule = JSON.parse(s("schedule") || "[]");
-  } catch {}
+  const list = (k: string): unknown[] => {
+    try {
+      const v: unknown = JSON.parse(s(k) || "[]");
+      return Array.isArray(v) ? v : [];
+    } catch {
+      return [];
+    }
+  };
   // Values are untrusted strings here; tripInputSchema validates and coerces every field.
   return {
     title: s("title"),
@@ -32,7 +36,8 @@ function formToInput(fd: FormData): TripInput {
     lateGraceMinutes: s("lateGraceMinutes"),
     busesEnabled: fd.get("busesEnabled") === "on",
     supervisorScope: s("supervisorScope"),
-    schedule: Array.isArray(schedule) ? schedule : [],
+    schedule: list("schedule"),
+    pickupPoints: list("pickupPoints"),
   } as unknown as TripInput;
 }
 

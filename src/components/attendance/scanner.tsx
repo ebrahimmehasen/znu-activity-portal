@@ -428,7 +428,7 @@ function RosterList({
 }) {
   const t = useT();
   const [q, setQ] = useState("");
-  const shown = pack.students.filter((s) => !(cp && cp.sortOrder > 1 && s.out) && (!q || s.name.includes(q.trim()) || s.phone.includes(q.trim())));
+  const shown = pack.students.filter((s) => !(cp && cp.sortOrder > 1 && s.out) && (!q || s.name.includes(q.trim()) || s.phone.includes(q.trim()) || Boolean(s.pickup?.includes(q.trim()))));
   const remaining = shown.filter((s) => !isRecorded(s.bookingId)).length;
   return (
     <div className="space-y-3">
@@ -446,6 +446,7 @@ function RosterList({
                 <div className="flex flex-wrap gap-x-3 text-xs text-muted">
                   <span>{s.faculty}</span>
                   {s.bus && <span>{s.bus}</span>}
+                  {s.pickup && <span>📍 {s.pickup}</span>}
                   <a href={`tel:${s.phone}`} className="text-primary" dir="ltr">
                     {s.phone}
                   </a>

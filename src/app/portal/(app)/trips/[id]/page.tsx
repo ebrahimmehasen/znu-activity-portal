@@ -12,7 +12,7 @@ import { formatDate, formatTime } from "@/lib/dates";
 import { getStudentTrip } from "@/lib/students/auth";
 import { requireStudent } from "@/lib/students/session";
 import { STATUS_LABELS, STATUS_TONES } from "@/lib/trips/labels";
-import { getSchedule } from "@/lib/trips/service";
+import { getSchedule, listPickupPoints } from "@/lib/trips/service";
 import { markStudentReadAction } from "../../../actions";
 import { BOOKING_TONES } from "../../booking-tones";
 
@@ -43,7 +43,8 @@ export default async function StudentTripPage({ params }: { params: Promise<{ id
   const row = Number.isInteger(id) ? await getStudentTrip(student.id, id) : null;
   if (!row) notFound();
   const { booking, trip, busName } = row;
-  const [schedule, news] = await Promise.all([getSchedule(trip.id), listStudentAnnouncements(student.id, trip.id)]);
+  const [schedule, news, points] = await Promise.all([getSchedule(trip.id), listStudentAnnouncements(student.id, trip.id), listPickupPoints(trip.id)]);
+  const myPickup = points.find((p) => p.id === booking.pickupPointId);
   const note = BOOKING_NOTES[booking.status];
   const { locale, t } = await getI18n();
 
@@ -73,6 +74,12 @@ export default async function StudentTripPage({ params }: { params: Promise<{ id
             <Info label={t("الانطلاق")}>{formatTime(trip.startTime, locale)}</Info>
             <Info label={t("العودة")}>{formatTime(trip.endTime, locale)}</Info>
             <Info label={t("المكان")}>{trip.location}</Info>
+            {myPickup && (
+              <Info label={t("مكان التجمع")}>
+                {myPickup.name}
+                {myPickup.time && ` — ${formatTime(myPickup.time, locale)}`}
+              </Info>
+            )}
             {booking.status === "confirmed" && trip.busesEnabled && <Info label={t("الحافلة")}>{busName ?? t("لم تُحدَّد بعد")}</Info>}
             {trip.feeEnabled && (
               <Info label={t("الاشتراك")}>

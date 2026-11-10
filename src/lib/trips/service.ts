@@ -1,8 +1,8 @@
 import { randomBytes } from "node:crypto";
-import { and, asc, count, desc, eq, inArray, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, notInArray, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { activities, activityScheduleItems, bookings, buses, type ActivityStatus } from "@/db/schema";
+import { activities, activityScheduleItems, bookings, buses, pickupPoints, type ActivityStatus } from "@/db/schema";
 import { recordAudit, type RequestCtx } from "@/lib/audit";
 import type { SessionUser } from "@/lib/auth/service";
 import { can } from "@/lib/authz";
@@ -28,6 +28,13 @@ export const scheduleItemSchema = z.object({
   notes: optionalText(1000),
 });
 
+/** A pickup point; `id` is set for points that already exist, so bookings keep their choice. */
+export const pickupPointSchema = z.object({
+  id: z.coerce.number().int().positive().optional(),
+  name: z.string().trim().min(2, "أدخل اسم مكان التجمع").max(150),
+  time: optionalTime,
+});
+
 export const tripInputSchema = z
   .object({
     title: z.string().trim().min(3, "يجب ألا يقل العنوان عن 3 أحرف").max(200),
@@ -46,6 +53,7 @@ export const tripInputSchema = z
     busesEnabled: z.boolean(),
     supervisorScope: z.enum(["bus", "all"]),
     schedule: z.array(scheduleItemSchema).max(50, "الحد الأقصى 50 بندًا"),
+    pickupPoints: z.array(pickupPointSchema).max(30, "الحد الأقصى 30 مكانًا").default([]),
   })
   .superRefine((d, ctx) => {
     if (d.feeEnabled) {
@@ -81,11 +89,37 @@ function scheduleRows(activityId: number, items: z.output<typeof scheduleItemSch
   return items.map((item, i) => ({ activityId, ...item, sortOrder: i + 1 }));
 }
 
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Makes the trip's pickup points match the list: existing ones (by id) are updated in
+ * place so the students who chose them keep their choice; removed ones are deleted,
+ * which leaves their bookings without a point.
+ */
+async function savePickupPoints(tx: Tx, activityId: number, points: z.output<typeof pickupPointSchema>[]) {
+  const existing = new Set(
+    (await tx.select({ id: pickupPoints.id }).from(pickupPoints).where(eq(pickupPoints.activityId, activityId))).map((p) => p.id),
+  );
+  const kept = points.filter((p) => p.id && existing.has(p.id)).map((p) => p.id!);
+  await tx
+    .delete(pickupPoints)
+    .where(and(eq(pickupPoints.activityId, activityId), kept.length ? notInArray(pickupPoints.id, kept) : undefined));
+  for (const [i, p] of points.entries()) {
+    const values = { name: p.name, time: p.time, sortOrder: i + 1 };
+    if (p.id && existing.has(p.id)) await tx.update(pickupPoints).set(values).where(eq(pickupPoints.id, p.id));
+    else await tx.insert(pickupPoints).values({ activityId, ...values });
+  }
+}
+
+export function listPickupPoints(activityId: number) {
+  return db.select().from(pickupPoints).where(eq(pickupPoints.activityId, activityId)).orderBy(asc(pickupPoints.sortOrder), asc(pickupPoints.id));
+}
+
 export async function createTrip(actor: SessionUser, input: TripInput, ctx: RequestCtx): Promise<Result<{ id: number }>> {
   assertCanManage(actor);
   const parsed = tripInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, errors: zodErrors(parsed.error) };
-  const { schedule, ...data } = parsed.data;
+  const { schedule, pickupPoints: points, ...data } = parsed.data;
   if (data.date < cairoToday()) return { ok: false, errors: { date: "هذا التاريخ قد مضى" } };
 
   const id = await db.transaction(async (tx) => {
@@ -94,6 +128,7 @@ export async function createTrip(actor: SessionUser, input: TripInput, ctx: Requ
       .values({ ...data, type: "trip", publicToken: randomBytes(16).toString("base64url"), createdBy: actor.id })
       .returning({ id: activities.id });
     if (schedule.length) await tx.insert(activityScheduleItems).values(scheduleRows(trip.id, schedule));
+    await savePickupPoints(tx, trip.id, points);
     return trip.id;
   });
 
@@ -112,7 +147,7 @@ export async function updateTrip(actor: SessionUser, id: number, input: TripInpu
 
   const parsed = tripInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, errors: zodErrors(parsed.error) };
-  const { schedule, ...data } = parsed.data;
+  const { schedule, pickupPoints: points, ...data } = parsed.data;
 
   if (data.date !== current.date) {
     if (current.status === "ongoing") return { ok: false, errors: { date: "لا يمكن تغيير تاريخ رحلة بدأت" } };
@@ -130,6 +165,7 @@ export async function updateTrip(actor: SessionUser, id: number, input: TripInpu
     await tx.update(activities).set(data).where(eq(activities.id, id));
     await tx.delete(activityScheduleItems).where(eq(activityScheduleItems.activityId, id));
     if (schedule.length) await tx.insert(activityScheduleItems).values(scheduleRows(id, schedule));
+    await savePickupPoints(tx, id, points);
   });
 
   await recordAudit(

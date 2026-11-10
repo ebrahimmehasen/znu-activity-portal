@@ -10,7 +10,7 @@ import { formatDate, formatTime } from "@/lib/dates";
 import { STATUS_LABELS, STATUS_TONES } from "@/lib/trips/labels";
 import { assignment } from "@/lib/supervisors/scope";
 import { requireVisibleTrip } from "@/lib/trips/access";
-import { getSchedule } from "@/lib/trips/service";
+import { getSchedule, listPickupPoints } from "@/lib/trips/service";
 import { purgeTripAction } from "../../purge-actions";
 import { deleteTripAction } from "../actions";
 import { AnnouncementsCard } from "./announcements-card";
@@ -36,8 +36,9 @@ export default async function TripPage({ params }: PageProps<"/dashboard/trips/[
   const { actor, trip } = await requireVisibleTrip((await params).id);
   const manager = can(actor, "manage_activities");
   const attendance = manager || can(actor, "take_attendance") || can(actor, "manage_gatherings");
-  const [schedule, mine] = await Promise.all([
+  const [schedule, points, mine] = await Promise.all([
     getSchedule(trip.id),
+    listPickupPoints(trip.id),
     actor.role === "supervisor" ? assignment(actor.id, trip.id) : Promise.resolve(null),
   ]);
   const myBus = mine?.busId ? (await listBuses(trip.id)).find((b) => b.id === mine.busId)?.name : undefined;
@@ -101,6 +102,20 @@ export default async function TripPage({ params }: PageProps<"/dashboard/trips/[
           <AnnouncementsCard actor={actor} trip={trip} />
 
           <BookingsCard trip={trip} canToggle={manager} />
+
+          {points.length > 0 && (
+            <Card>
+              <h2 className="mb-3 font-semibold">{t("أماكن التجمع")}</h2>
+              <ul className="space-y-2">
+                {points.map((p) => (
+                  <li key={p.id} className="flex gap-3">
+                    <span className="w-20 shrink-0 text-sm font-semibold text-primary">{formatTime(p.time, locale) || "•"}</span>
+                    <span>📍 {p.name}</span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
 
           <Card>
             <h2 className="mb-3 font-semibold">{t("برنامج الرحلة")}</h2>

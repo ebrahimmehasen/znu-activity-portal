@@ -16,6 +16,8 @@ import { bookingScope } from "@/lib/supervisors/scope";
 import { requireVisibleTrip } from "@/lib/trips/access";
 import { bookingAction } from "./actions";
 import { BusSelect } from "./bus-select";
+import { PickupSelect } from "./pickup-select";
+import { listPickupPoints } from "@/lib/trips/service";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: (await getT())("الحجوزات") };
@@ -49,23 +51,26 @@ export default async function BookingsPage({ params, searchParams }: PageProps<"
   const sp = await searchParams;
   const status = STATUSES.find((s) => s === one(sp.status));
   const busParam = one(sp.bus);
+  const pickupParam = one(sp.pickup);
   const filters: BookingFilters = {
     status,
     q: one(sp.q)?.slice(0, 100),
     paid: one(sp.paid) === "paid" || one(sp.paid) === "unpaid" ? (one(sp.paid) as "paid" | "unpaid") : undefined,
     flagged: one(sp.flagged) === "1",
     busId: busParam === "none" ? "none" : busParam && Number(busParam) > 0 ? Number(busParam) : undefined,
+    pickupPointId: pickupParam === "none" ? "none" : pickupParam && Number(pickupParam) > 0 ? Number(pickupParam) : undefined,
     page: Math.max(1, Number.parseInt(one(sp.page) ?? "1", 10) || 1),
     scope: await bookingScope(actor, trip),
     searchNationalId: fullNid,
   };
   const scoped = filters.scope?.kind === "bus";
 
-  const [{ rows, hasNext }, stats, busLoad, faculties] = await Promise.all([
+  const [{ rows, hasNext }, stats, busLoad, faculties, points] = await Promise.all([
     listBookings(trip.id, filters),
     bookingStats(trip),
     trip.busesEnabled ? listBusLoad(trip.id) : Promise.resolve([]),
     listFaculties(),
+    listPickupPoints(trip.id),
   ]);
   const facultyName = new Map(faculties.map((f) => [f.id, f.name]));
   const { locale, t } = await getI18n();
@@ -78,6 +83,7 @@ export default async function BookingsPage({ params, searchParams }: PageProps<"
       paid: filters.paid,
       flagged: filters.flagged ? "1" : undefined,
       bus: busParam,
+      pickup: pickupParam,
       ...patch,
     };
     const qs = new URLSearchParams(Object.entries(merged).filter((e): e is [string, string] => Boolean(e[1])));
@@ -169,6 +175,17 @@ export default async function BookingsPage({ params, searchParams }: PageProps<"
             ))}
           </select>
         )}
+        {points.length > 0 && (
+          <select name="pickup" defaultValue={pickupParam ?? ""} className={selectCls} aria-label={t("مكان التجمع")}>
+            <option value="">{t("كل أماكن التجمع")}</option>
+            <option value="none">{t("بدون مكان تجمع")}</option>
+            {points.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        )}
         {manager && (
           <label className="flex items-center gap-1.5 text-sm">
             <input type="checkbox" name="flagged" value="1" defaultChecked={filters.flagged} className="accent-primary" />
@@ -182,7 +199,7 @@ export default async function BookingsPage({ params, searchParams }: PageProps<"
         <Card className="py-10 text-center text-muted">{t("لا توجد حجوزات.")}</Card>
       ) : (
         <Card className="divide-y divide-border p-0">
-          {rows.map(({ booking: b, student: s, facultyName: faculty, busName }) => {
+          {rows.map(({ booking: b, student: s, facultyName: faculty, busName, pickupName }) => {
             const fields = { id: b.id, activityId: trip.id };
             const sub = b.submittedData;
             return (
@@ -210,6 +227,7 @@ export default async function BookingsPage({ params, searchParams }: PageProps<"
                     {b.source === "manual" && <Badge>{t("يدوي")}</Badge>}
                     {trip.feeEnabled && b.status !== "cancelled" && <Badge tone={b.paidAt ? "success" : "neutral"}>{b.paidAt ? t("دفع") : t("لم يدفع")}</Badge>}
                     {busName && <Badge>{busName}</Badge>}
+                    {pickupName && <Badge>📍 {pickupName}</Badge>}
                   </div>
                 </div>
 
@@ -274,6 +292,9 @@ export default async function BookingsPage({ params, searchParams }: PageProps<"
                       >
                         {b.paidAt ? t("إلغاء الدفع") : t("تسجيل دفع {amount} ج", { amount: Number(trip.feeAmount) })}
                       </ActionButton>
+                    )}
+                    {manager && editable && points.length > 0 && (
+                      <PickupSelect activityId={trip.id} bookingId={b.id} pickupPointId={b.pickupPointId} points={points} />
                     )}
                     {manager && trip.busesEnabled && b.status === "confirmed" && busLoad.length > 0 && (
                       <BusSelect activityId={trip.id} bookingId={b.id} busId={b.busId} buses={busLoad} />
