@@ -57,6 +57,13 @@
       "when": 1794330942240,
       "tag": "0007_pickup_points",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1795080039115,
+      "tag": "0008_restore_keeps_first_absence",
+      "breakpoints": true
     }
   ]
 }

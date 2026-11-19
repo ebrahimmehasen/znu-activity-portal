@@ -72,11 +72,13 @@ export function finalAbsentCondition(): SQL {
 
 /**
  * On `bookings`: a final absentee who hasn't come back by gathering `upTo` (any later
- * gathering when omitted). A standing record in a later gathering brings them back.
+ * gathering when omitted). A standing record in a later gathering, or an admin's restore
+ * from that gathering on, brings them back.
  */
 export function outOfTripCondition(upTo?: number): SQL {
   return and(
     finalAbsentCondition(),
+    upTo === undefined ? isNull(bookings.returnedFromOrder) : sql`(${bookings.returnedFromOrder} is null or ${bookings.returnedFromOrder} > ${upTo})`,
     notExists(
       db
         .select({ one: sql`1` })
@@ -683,7 +685,10 @@ export async function lockRoster(actor: SessionUser, activityId: number, ctx: Re
   return { ok: true, present, absent: t.absent };
 }
 
-/** Brings a final absentee back for the coming gatherings (when the setting allows it). */
+/**
+ * Brings a final absentee back for the coming gatherings (when the setting allows it):
+ * from the open or next gathering on, while the first gathering keeps them absent.
+ */
 export async function restoreAbsent(actor: SessionUser, bookingId: number, ctx: RequestCtx): Promise<Result> {
   assertCan(actor, ADMIN);
   if ((await getSetting("restore_absent_student")) !== "allowed") return fail("إعادة الطلاب المسجَّل غيابهم ممنوعة في الإعدادات");
@@ -695,8 +700,14 @@ export async function restoreAbsent(actor: SessionUser, bookingId: number, ctx: 
     .where(and(eq(attendances.bookingId, bookingId), eq(checkpoints.sortOrder, 1), eq(attendances.status, "absent"), activeRecord()));
   if (!row) return fail("الطالب ليس مسجَّل الغياب نهائيًا");
   if (row.trip.status !== "ongoing") return fail("الرحلة ليست جارية");
-  await db.update(attendances).set({ voidedBy: actor.id, voidedAt: new Date() }).where(eq(attendances.id, row.rec.id));
-  await audit(actor, "attendance.restored", "booking", bookingId, { activityId: row.trip.id }, ctx);
+  const [still] = await db.select({ id: bookings.id }).from(bookings).where(and(eq(bookings.id, bookingId), outOfTripCondition()));
+  if (!still) return fail("عاد الطالب إلى الرحلة بالفعل");
+
+  // The first later gathering not closed yet (open, or added and not opened), else the next one to be added.
+  const later = (await listCheckpoints(row.trip.id)).filter((c) => c.sortOrder > 1);
+  const from = later.find((c) => !c.closedAt)?.sortOrder ?? Math.max(1, ...later.map((c) => c.sortOrder)) + 1;
+  await db.update(bookings).set({ returnedFromOrder: from }).where(eq(bookings.id, bookingId));
+  await audit(actor, "attendance.restored", "booking", bookingId, { activityId: row.trip.id, fromGathering: from }, ctx);
   return { ok: true };
 }
 

@@ -1,0 +1,1 @@
+ALTER TABLE "bookings" ADD COLUMN "returned_from_order" integer;

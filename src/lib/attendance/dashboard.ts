@@ -43,6 +43,7 @@ export async function tripDashboard(actor: SessionUser, trip: Activity) {
         busId: bookings.busId,
         paidAt: bookings.paidAt,
         pickupPointId: bookings.pickupPointId,
+        returnedFromOrder: bookings.returnedFromOrder,
       })
       .from(bookings)
       .innerJoin(students, eq(students.id, bookings.studentId))
@@ -67,12 +68,14 @@ export async function tripDashboard(actor: SessionUser, trip: Activity) {
 
   const rows = roster.map((s) => {
     const finalAbsent = first ? byKey.get(`${first.id}:${s.bookingId}`)?.status === "absent" : false;
-    // The first later gathering with a record for a final absentee: back on the trip from there.
-    const backAt = finalAbsent ? cps.find((cp) => cp.sortOrder > 1 && byKey.has(`${cp.id}:${s.bookingId}`))?.sortOrder : undefined;
-    const out = finalAbsent && backAt === undefined;
-    const returned = finalAbsent && backAt !== undefined;
+    // The first later gathering with a record for a final absentee, or the one an admin
+    // brought them back from: back on the trip from there.
+    const scannedBack = finalAbsent ? cps.find((cp) => cp.sortOrder > 1 && byKey.has(`${cp.id}:${s.bookingId}`))?.sortOrder : undefined;
+    const backAt = finalAbsent ? (Math.min(scannedBack ?? Infinity, s.returnedFromOrder ?? Infinity) as number) : Infinity;
+    const out = finalAbsent && backAt === Infinity;
+    const returned = finalAbsent && backAt !== Infinity;
     const recs = cps.map((cp) =>
-      cp.sortOrder > 1 && finalAbsent && (backAt === undefined || cp.sortOrder < backAt) ? undefined : (byKey.get(`${cp.id}:${s.bookingId}`) ?? null),
+      cp.sortOrder > 1 && finalAbsent && cp.sortOrder < backAt ? undefined : (byKey.get(`${cp.id}:${s.bookingId}`) ?? null),
     );
     const cells: DashboardCell[] = recs.map((r) => (r === undefined ? null : rowState(r)));
     // When each one was scanned or marked (null: no record, or marked absent).

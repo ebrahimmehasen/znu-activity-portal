@@ -89,7 +89,6 @@ export const EN: Record<string, string> = {
   "إضافة مسؤول": "Add admin",
   "إضافة مشرف": "Add supervisor",
   "إضافة مشرف إلى رحلة": "Supervisor added to a trip",
-  "إعادة {name} إلى الرحلة؟ سيظهر في التجمعات التالية.": "Bring {name} back to the trip? They'll appear in the next gatherings.",
   "إعادة إلى الرحلة": "Bring back to trip",
   "إعادة الرحلة إلى «جارية» تحتاج تأكيدًا صريحًا": "Moving the trip back to ongoing needs explicit confirmation",
   "إعادة الرحلة إلى جارية": "Make the trip ongoing again",
@@ -721,4 +720,6 @@ export const EN: Record<string, string> = {
   "عاد إلى الرحلة: سُجِّل الحضور": "Back on the trip: recorded as present",
   "عاد إلى الرحلة: سُجِّل متأخرًا": "Back on the trip: recorded as late",
   "عاد إلى الرحلة: سُجِّل، بانتظار تأكيد المسؤول": "Back on the trip: recorded, waiting for an admin to confirm",
+  "إعادة {name} إلى الرحلة؟ سيظهر في التجمعات التالية ويبقى غائبًا في التجمع الأول.": "Bring {name} back to the trip? They'll be on the next gatherings and stay absent at the first one.",
+  "عاد الطالب إلى الرحلة بالفعل": "The student is already back on the trip",
 };

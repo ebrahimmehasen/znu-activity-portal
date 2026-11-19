@@ -267,6 +267,9 @@ export const bookings = pgTable(
     busId: integer("bus_id").references(() => buses.id, { onDelete: "set null" }),
     // Removing a pickup point from the trip leaves its bookings without one.
     pickupPointId: integer("pickup_point_id").references(() => pickupPoints.id, { onDelete: "set null" }),
+    // A final absentee an admin brought back: on the rosters from this gathering (sort order) on.
+    // The first gathering keeps them absent.
+    returnedFromOrder: integer("returned_from_order"),
     paidAmount: numeric("paid_amount", { precision: 10, scale: 2 }),
     paidAt: timestamp("paid_at", { withTimezone: true }),
     paymentRecordedBy: integer("payment_recorded_by").references(() => users.id),

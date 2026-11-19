@@ -291,7 +291,7 @@ export default async function AttendancePage({ params, searchParams }: PageProps
                         fields={{ ...base, op: "restore", bookingId: a.bookingId }}
                         variant="secondary"
                         className={small}
-                        confirm={t("إعادة {name} إلى الرحلة؟ سيظهر في التجمعات التالية.", { name: a.name })}
+                        confirm={t("إعادة {name} إلى الرحلة؟ سيظهر في التجمعات التالية ويبقى غائبًا في التجمع الأول.", { name: a.name })}
                       >
                         {t("إعادة إلى الرحلة")}
                       </ActionButton>

@@ -344,6 +344,17 @@ describe("trip run and attendance", () => {
       await updateSettings(superAdmin, { restore_absent_student: "allowed" }, ctx);
       expect(await restoreAbsent(admin, bookingIds[0], ctx)).toEqual({ ok: true });
       expect(await finalAbsentees(id, { kind: "all" })).toEqual([]);
+      expect((await restoreAbsent(admin, bookingIds[0], ctx)).ok).toBe(false);
+
+      // Still absent at the first gathering, and on the next one.
+      const trip = (await getTrip(id))!;
+      expect(tallies(await checkpointRoster(trip, cp, { kind: "all" }))).toMatchObject({ absent: 1 });
+      const added = await addCheckpoint(admin, id, { name: "الغدا", time: "13:00" }, ctx);
+      if (!added.ok) throw new Error("cp");
+      await setCheckpointOpen(admin, added.id, true, ctx);
+      const cp2 = (await listCheckpoints(id))[1];
+      expect((await checkpointRoster(trip, cp2, { kind: "all" })).map((r) => r.bookingId)).toEqual([bookingIds[0]]);
+      expect((await sync(admin, id, [await scan(bookingIds[0], cp2.id)]))[0].result).toBe("recorded");
     });
   });
 
