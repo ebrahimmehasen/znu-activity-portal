@@ -28,7 +28,7 @@ export const SETTINGS = {
   restore_absent_student: {
     label: "إعادة طالب مسجَّل غيابه نهائيًا",
     options: {
-      allowed: "مسموح للمسؤول (يعود إلى الكشف ويظهر في التجمعات التالية)",
+      allowed: "مسموح (يبقى رمزه، ويعود بمسحه في تجمع لاحق ويبقى غائبًا في التجمع الأول)",
       denied: "ممنوع",
     },
     default: "allowed",

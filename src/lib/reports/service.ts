@@ -32,7 +32,7 @@ export async function tripReport(actor: SessionUser, trip: Activity, locale: Loc
   const t = makeT(locale);
 
   // "Actually there": the fixed roster once confirmed, else whoever has arrived so far.
-  const actual = trip.rosterLockedAt ? d.confirmed - d.finalAbsent : first ? first.present + first.late + first.pending : null;
+  const actual = trip.rosterLockedAt ? d.confirmed - d.out : first ? first.present + first.late + first.pending : null;
 
   const summary: [string, string | number][] = [
     [t("الرحلة"), trip.title],
@@ -46,7 +46,8 @@ export async function tripReport(actor: SessionUser, trip: Activity, locale: Loc
     ...(stats.waitlisted ? ([[t("قائمة الانتظار"), stats.waitlisted]] as [string, number][]) : []),
     [t("الملغاة"), stats.cancelled],
     [t("الحاضرون فعليًا"), actual ?? "—"],
-    [t("الغائبون"), trip.rosterLockedAt ? d.finalAbsent : first ? first.absent : "—"],
+    [t("الغائبون"), trip.rosterLockedAt ? d.out : first ? first.absent : "—"],
+    ...(d.returned ? ([[t("عادوا بعد التجمع الأول"), d.returned]] as [string, number][]) : []),
     ...(trip.feeEnabled ? ([[t("الدفع"), t("{n} ({amount} جنيه)", { n: stats.paid, amount: stats.collected })]] as [string, string][]) : []),
   ];
 

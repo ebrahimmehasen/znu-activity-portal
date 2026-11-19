@@ -290,7 +290,40 @@ describe("trip run and attendance", () => {
       const cp2 = (await listCheckpoints(id))[1];
       const roster = await checkpointRoster((await getTrip(id))!, cp2, { kind: "all" });
       expect(roster.map((r) => r.bookingId)).toEqual([bookingIds[0]]);
+
+      // With returns denied, a later scan is refused.
+      const superAdmin = await createUser("super_admin");
+      await updateSettings(superAdmin, { restore_absent_student: "denied" }, ctx);
       expect((await sync(admin, id, [await scan(bookingIds[1], cp2.id)]))[0].result).toBe("not_in_trip");
+    });
+
+    it("brings a final absentee back when scanned at a later gathering", async () => {
+      const { id, bookingIds, cp } = await started(2);
+      await sync(admin, id, [await scan(bookingIds[0], cp.id)]);
+      await markAbsent(admin, cp.id, bookingIds[1], ctx);
+      await lockRoster(admin, id, ctx);
+
+      const addCp = async (name: string) => {
+        const added = await addCheckpoint(admin, id, { name, time: "13:00" }, ctx);
+        if (!added.ok) throw new Error("cp");
+        await setCheckpointOpen(admin, added.id, true, ctx);
+        return (await listCheckpoints(id)).find((c) => c.id === added.id)!;
+      };
+      const cp2 = await addCp("الغدا");
+      await setCheckpointOpen(admin, cp2.id, false, ctx);
+      const cp3 = await addCp("العودة");
+      const trip = (await getTrip(id))!;
+      expect((await scanPack(admin, trip)).students.find((s) => s.bookingId === bookingIds[1])?.out).toBe(true);
+
+      const [back] = await sync(admin, id, [await scan(bookingIds[1], cp3.id)]);
+      expect(back).toMatchObject({ result: "recorded", message: "عاد إلى الرحلة: سُجِّل الحضور" });
+
+      // Still absent at the first gathering, off the gathering they missed, on from the one they came back at.
+      expect(tallies(await checkpointRoster(trip, cp, { kind: "all" }))).toMatchObject({ present: 1, absent: 1 });
+      expect((await checkpointRoster(trip, cp2, { kind: "all" })).map((r) => r.bookingId)).toEqual([bookingIds[0]]);
+      expect((await checkpointRoster(trip, cp3, { kind: "all" })).find((r) => r.bookingId === bookingIds[1])?.state).toBe("present");
+      expect(await finalAbsentees(id, { kind: "all" })).toEqual([]);
+      expect((await scanPack(admin, trip)).students.find((s) => s.bookingId === bookingIds[1])?.out).toBe(false);
     });
 
     it("lets a scan replace an absent mark before the count is confirmed", async () => {
@@ -422,7 +455,7 @@ describe("trip run and attendance", () => {
     });
   });
 
-  it("hides the QR of a final absentee", async () => {
+  it("keeps the QR of a final absentee only while they may come back", async () => {
     const id = await newTrip();
     const r = await addManualBooking(admin, id, studentInput(1, facultyId), ctx);
     if (!r.ok) throw new Error("book");
@@ -431,6 +464,8 @@ describe("trip run and attendance", () => {
     const [booking] = await db.select().from(bookings).where(eq(bookings.id, r.bookingId));
     expect(await offlineQrData(booking.studentId)).toHaveLength(1);
     await markAbsent(admin, cp.id, r.bookingId, ctx);
+    expect(await offlineQrData(booking.studentId)).toHaveLength(1);
+    await updateSettings(await createUser("super_admin"), { restore_absent_student: "denied" }, ctx);
     expect(await offlineQrData(booking.studentId)).toEqual([]);
   });
 });

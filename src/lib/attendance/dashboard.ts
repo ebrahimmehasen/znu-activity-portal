@@ -21,7 +21,7 @@ import { activeRecord, isOpen, listCheckpoints, rowState, tallies, type RowState
  * gathering, and per gathering how many are present / late / still missing — for the
  * whole trip and per bus. A bus-scoped supervisor sees their own bus only.
  * A cell is null where the student isn't on that gathering's roster (final absentees
- * after the first gathering).
+ * after the first gathering, until a later gathering's record brings them back).
  */
 
 export type DashboardCell = RowState | null;
@@ -67,12 +67,18 @@ export async function tripDashboard(actor: SessionUser, trip: Activity) {
 
   const rows = roster.map((s) => {
     const finalAbsent = first ? byKey.get(`${first.id}:${s.bookingId}`)?.status === "absent" : false;
-    const recs = cps.map((cp) => (cp.sortOrder > 1 && finalAbsent ? undefined : (byKey.get(`${cp.id}:${s.bookingId}`) ?? null)));
+    // The first later gathering with a record for a final absentee: back on the trip from there.
+    const backAt = finalAbsent ? cps.find((cp) => cp.sortOrder > 1 && byKey.has(`${cp.id}:${s.bookingId}`))?.sortOrder : undefined;
+    const out = finalAbsent && backAt === undefined;
+    const returned = finalAbsent && backAt !== undefined;
+    const recs = cps.map((cp) =>
+      cp.sortOrder > 1 && finalAbsent && (backAt === undefined || cp.sortOrder < backAt) ? undefined : (byKey.get(`${cp.id}:${s.bookingId}`) ?? null),
+    );
     const cells: DashboardCell[] = recs.map((r) => (r === undefined ? null : rowState(r)));
     // When each one was scanned or marked (null: no record, or marked absent).
     const times = recs.map((r) => (r && r.status !== "absent" ? r.recordedAt : null));
     const pickup = s.pickupPointId ? (pickupName.get(s.pickupPointId) ?? null) : null;
-    return { ...s, busName: s.busId ? (busName.get(s.busId) ?? null) : null, pickupName: pickup, finalAbsent, cells, times };
+    return { ...s, busName: s.busId ? (busName.get(s.busId) ?? null) : null, pickupName: pickup, finalAbsent, out, returned, cells, times };
   });
 
   const tally = (subset: typeof rows): CheckpointTally[] =>
@@ -100,6 +106,9 @@ export async function tripDashboard(actor: SessionUser, trip: Activity) {
     rows,
     confirmed: rows.length,
     finalAbsent: rows.filter((r) => r.finalAbsent).length,
+    /** Absent at the first gathering and not back since. */
+    out: rows.filter((r) => r.out).length,
+    returned: rows.filter((r) => r.returned).length,
     totals: tally(rows),
     groups: groups.map((g) => ({ key: g.key, label: g.label, count: g.rows.length, tallies: tally(g.rows) })),
     pickupGroups: pickupGroups.map((g) => ({ key: g.key, label: g.label, count: g.rows.length, tallies: tally(g.rows) })),

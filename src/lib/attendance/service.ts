@@ -1,4 +1,4 @@
-import { and, asc, count, eq, exists, inArray, isNotNull, isNull, max, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, eq, exists, gt, inArray, isNotNull, isNull, lte, max, notExists, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import {
@@ -32,7 +32,9 @@ import { getTrip } from "@/lib/trips/service";
  * Trip run and attendance (plan §5.5–§6.1):
  * - "start trip" (admin, on the trip day) opens the first gathering on all confirmed bookings;
  * - each one ends up present / late / absent, then "confirm trip count" fixes the roster;
- *   absent there means out of the trip: no QR, no later gatherings;
+ *   absent there means out of the trip and off the later gatherings, unless the setting
+ *   lets them come back: their QR stays, and a record in a later gathering brings them
+ *   back from that gathering on, while the first gathering keeps them absent;
  * - later gatherings run on the fixed roster; lateness counts from the device scan time;
  * - supervisors' records wait for an admin unless they may confirm directly.
  * Scans and manual marks all go through `syncAttendance`, online or after an offline spell.
@@ -66,6 +68,30 @@ export function finalAbsentCondition(): SQL {
       .innerJoin(checkpoints, eq(checkpoints.id, attendances.checkpointId))
       .where(and(eq(attendances.bookingId, bookings.id), eq(checkpoints.sortOrder, 1), eq(attendances.status, "absent"), activeRecord())),
   );
+}
+
+/**
+ * On `bookings`: a final absentee who hasn't come back by gathering `upTo` (any later
+ * gathering when omitted). A standing record in a later gathering brings them back.
+ */
+export function outOfTripCondition(upTo?: number): SQL {
+  return and(
+    finalAbsentCondition(),
+    notExists(
+      db
+        .select({ one: sql`1` })
+        .from(attendances)
+        .innerJoin(checkpoints, eq(checkpoints.id, attendances.checkpointId))
+        .where(
+          and(
+            eq(attendances.bookingId, bookings.id),
+            gt(checkpoints.sortOrder, 1),
+            upTo === undefined ? undefined : lte(checkpoints.sortOrder, upTo),
+            activeRecord(),
+          ),
+        ),
+    ),
+  )!;
 }
 
 export function lateness(cp: Pick<Checkpoint, "scheduledAt">, graceMinutes: number, at: Date): Exclude<AttendanceStatus, "absent"> {
@@ -222,7 +248,7 @@ export type RowState = AttendanceStatus | "pending" | "unrecorded";
 
 /**
  * The students a gathering covers (confirmed bookings within the actor's scope; after
- * the first gathering, minus the final absentees) with their standing record.
+ * the first gathering, minus the final absentees who haven't come back by then) with their standing record.
  */
 export async function checkpointRoster(trip: Activity, cp: Checkpoint, scope: BookingScope) {
   const rows = await db
@@ -247,7 +273,7 @@ export async function checkpointRoster(trip: Activity, cp: Checkpoint, scope: Bo
         eq(bookings.activityId, trip.id),
         eq(bookings.status, "confirmed"),
         scopeCondition(scope),
-        cp.sortOrder > 1 ? sql`not ${finalAbsentCondition()}` : undefined,
+        cp.sortOrder > 1 ? sql`not ${outOfTripCondition(cp.sortOrder)}` : undefined,
       ),
     )
     .orderBy(asc(students.name));
@@ -277,13 +303,13 @@ export async function rejectedRecords(cp: Checkpoint, scope: BookingScope) {
     .orderBy(asc(attendances.recordedAt));
 }
 
-/** Students out of the trip after the first gathering. */
+/** Students out of the trip after the first gathering (and not back since). */
 export async function finalAbsentees(activityId: number, scope: BookingScope) {
   return db
     .select({ bookingId: bookings.id, name: students.name, phone: students.phone })
     .from(bookings)
     .innerJoin(students, eq(students.id, bookings.studentId))
-    .where(and(eq(bookings.activityId, activityId), eq(bookings.status, "confirmed"), scopeCondition(scope), finalAbsentCondition()))
+    .where(and(eq(bookings.activityId, activityId), eq(bookings.status, "confirmed"), scopeCondition(scope), outOfTripCondition()))
     .orderBy(asc(students.name));
 }
 
@@ -315,6 +341,8 @@ type SyncContext = {
   trip: Activity;
   scope: BookingScope;
   checkpoints: Map<number, Checkpoint>;
+  /** Final absentees may come back by being recorded in a later gathering. */
+  returnAllowed: boolean;
   now: number;
 };
 
@@ -336,9 +364,9 @@ export async function syncAttendance(
   if (!Array.isArray(records) || records.length > MAX_SYNC_BATCH) return fail("عدد التسجيلات كبير");
 
   // Scope (which also says whether the actor may see the trip) and gatherings in one round trip.
-  const [scope, cps] = await Promise.all([bookingScope(actor, trip), listCheckpoints(trip.id)]);
+  const [scope, cps, restore] = await Promise.all([bookingScope(actor, trip), listCheckpoints(trip.id), getSetting("restore_absent_student")]);
   if (scope.kind === "none") return fail("الرحلة غير موجودة");
-  const sc: SyncContext = { actor, trip, scope, checkpoints: new Map(cps.map((c) => [c.id, c])), now };
+  const sc: SyncContext = { actor, trip, scope, checkpoints: new Map(cps.map((c) => [c.id, c])), returnAllowed: restore === "allowed", now };
   const outcomes: SyncOutcome[] = [];
   for (const raw of records) {
     const parsed = syncRecordSchema.safeParse(raw);
@@ -373,8 +401,9 @@ async function recordStudent(sc: SyncContext, rec: Extract<SyncRecord, { kind: "
   const out = (result: SyncResult, message: string, name?: string): SyncOutcome => ({ clientUuid: rec.clientUuid, result, message, name });
   if (!can(actor, "take_attendance")) return out("forbidden", "ليس لديك صلاحية تسجيل الحضور");
 
-  // Everything this record needs in one query: the booking, its secret, whether it was
-  // marked absent for good, and an earlier upload of the same device record.
+  // Everything this record needs in one query: the booking, its secret, whether it is
+  // out of the trip (absent at the first gathering, not back since), and an earlier upload
+  // of the same device record.
   const [b] = await db
     .select({
       id: bookings.id,
@@ -382,7 +411,7 @@ async function recordStudent(sc: SyncContext, rec: Extract<SyncRecord, { kind: "
       busId: bookings.busId,
       name: students.name,
       qrSecret: bookings.qrSecret,
-      finalAbsent: sql<boolean>`${finalAbsentCondition()}`.mapWith(Boolean),
+      out: sql<boolean>`${outOfTripCondition()}`.mapWith(Boolean),
       seenId: sql<number | null>`(select x.id from ${attendances} x where x.client_uuid = ${rec.clientUuid})`,
     })
     .from(bookings)
@@ -402,7 +431,9 @@ async function recordStudent(sc: SyncContext, rec: Extract<SyncRecord, { kind: "
   if (b.status !== "confirmed") {
     return rec.method === "qr" ? reject(sc, rec, cp, "revoked", b.name) : out("not_in_trip", "حجز الطالب غير مؤكد", b.name);
   }
-  if (cp.sortOrder > 1 && b.finalAbsent) return out("not_in_trip", "سُجِّل غياب الطالب نهائيًا في التجمع الأول", b.name);
+  // A final absentee recorded in a later gathering comes back from there on; the first gathering keeps them absent.
+  const returning = cp.sortOrder > 1 && b.out;
+  if (returning && !sc.returnAllowed) return out("not_in_trip", "سُجِّل غياب الطالب نهائيًا في التجمع الأول", b.name);
 
   const at = new Date(rec.recordedAt);
   if (rec.recordedAt > sc.now + SKEW_MS) return out("error", "ساعة الهاتف متقدمة، اضبطها وأعد التسجيل", b.name);
@@ -436,7 +467,10 @@ async function recordStudent(sc: SyncContext, rec: Extract<SyncRecord, { kind: "
     .values({ checkpointId: cp.id, bookingId: b.id, ...values })
     .onConflictDoNothing()
     .returning();
-  if (inserted) return outcomeOf(inserted, b.name);
+  if (inserted) {
+    const o = outcomeOf(inserted, b.name);
+    return returning ? { ...o, message: `عاد إلى الرحلة: ${o.message}` } : o;
+  }
 
   const [standing] = await db
     .select()
@@ -696,17 +730,20 @@ export type ScanPack = {
   trip: { id: number; title: string; date: string; status: Activity["status"]; rosterLocked: boolean };
   checkpoints: { id: number; name: string; sortOrder: number; open: boolean; openedAt: number | null; closedAt: number | null }[];
   /** Names and contact only; no national IDs and no QR secrets leave the server. */
+  /** `out`: absent at the first gathering and not back since. */
   students: { bookingId: number; name: string; faculty: string; year: number; phone: string; bus: string | null; pickup: string | null; out: boolean }[];
   /** Booking ids with a standing record, per gathering, so the scanner flags repeats offline. */
   recorded: Record<number, number[]>;
   supervisors: { userId: number; name: string; present: boolean }[] | null;
   canManual: boolean;
+  /** Whether an out student may be scanned back into a later gathering. */
+  returnAllowed: boolean;
   generatedAt: number;
 };
 
 export async function scanPack(actor: SessionUser, trip: Activity): Promise<ScanPack> {
   const scope = await bookingScope(actor, trip);
-  const [cps, rows, absent] = await Promise.all([
+  const [cps, rows, absent, restore] = await Promise.all([
     listCheckpoints(trip.id),
     db
       .select({
@@ -728,7 +765,8 @@ export async function scanPack(actor: SessionUser, trip: Activity): Promise<Scan
     db
       .select({ id: bookings.id })
       .from(bookings)
-      .where(and(eq(bookings.activityId, trip.id), finalAbsentCondition())),
+      .where(and(eq(bookings.activityId, trip.id), outOfTripCondition())),
+    getSetting("restore_absent_student"),
   ]);
   const out = new Set(absent.map((a) => a.id));
   const cpIds = cps.map((c) => c.id);
@@ -759,6 +797,7 @@ export async function scanPack(actor: SessionUser, trip: Activity): Promise<Scan
     recorded,
     supervisors,
     canManual: can(actor, "take_attendance"),
+    returnAllowed: restore === "allowed",
     generatedAt: Date.now(),
   };
 }

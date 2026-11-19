@@ -140,16 +140,19 @@ export type OfflineQr = {
 
 /**
  * What the phone keeps for offline QR: confirmed bookings of trips that haven't
- * finished, minus final absentees. Cancelled bookings drop out here, so the next sync removes them.
+ * finished, minus final absentees unless they may come back. Cancelled bookings drop
+ * out here, so the next sync removes them.
  */
 export async function offlineQrData(studentId: number): Promise<OfflineQr[]> {
+  // Marked absent in the first gathering means out of the trip: no QR (plan §7), unless the
+  // setting lets them come back, which a scan of this QR at a later gathering does.
+  const returnAllowed = (await getSetting("restore_absent_student")) === "allowed";
   const rows = await db
     .select({ booking: bookings, trip: activities, busName: buses.name })
     .from(bookings)
     .innerJoin(activities, eq(activities.id, bookings.activityId))
     .leftJoin(buses, eq(buses.id, bookings.busId))
-    // Marked absent in the first gathering means out of the trip: no QR (plan §7).
-    .where(and(eq(bookings.studentId, studentId), eq(bookings.status, "confirmed"), sql`not ${finalAbsentCondition()}`))
+    .where(and(eq(bookings.studentId, studentId), eq(bookings.status, "confirmed"), returnAllowed ? undefined : sql`not ${finalAbsentCondition()}`))
     .orderBy(asc(activities.date));
 
   const result: OfflineQr[] = [];

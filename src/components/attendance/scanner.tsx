@@ -182,7 +182,8 @@ export function Scanner({ tripId }: { tripId: number }) {
     if (!cp) return setBanner({ message: "لا يوجد تجمع مفتوح الآن", tone: "danger" });
     const s = students.get(bookingId);
     if (!s) return setBanner({ message: "الطالب ليس في الرحلة (أو ليس في حافلتك)", tone: "danger" });
-    if (s.out && cp.sortOrder > 1) return setBanner({ name: s.name, message: "سُجِّل غيابه نهائيًا في التجمع الأول", tone: "danger" });
+    // Absent at the first gathering: a later gathering's record brings them back, if the setting allows it.
+    if (s.out && cp.sortOrder > 1 && !pack?.returnAllowed) return setBanner({ name: s.name, message: "سُجِّل غيابه نهائيًا في التجمع الأول", tone: "danger" });
     if (isRecorded(bookingId)) return setBanner({ name: s.name, message: "مكرر: مسجَّل من قبل في هذا التجمع", tone: "neutral" });
     void enqueue(s.name, { kind: "student", clientUuid: crypto.randomUUID(), checkpointId: cp.id, bookingId, method, code, recordedAt: serverNow() });
   }
@@ -428,21 +429,32 @@ function RosterList({
 }) {
   const t = useT();
   const [q, setQ] = useState("");
-  const shown = pack.students.filter((s) => !(cp && cp.sortOrder > 1 && s.out) && (!q || s.name.includes(q.trim()) || s.phone.includes(q.trim()) || Boolean(s.pickup?.includes(q.trim()))));
-  const remaining = shown.filter((s) => !isRecorded(s.bookingId)).length;
+  // Out of the trip (absent at the first gathering) and not recorded here: listed last, apart
+  // from the count, and only when they may come back.
+  const outHere = (s: ScanPack["students"][number]) => Boolean(cp && cp.sortOrder > 1 && s.out && !isRecorded(s.bookingId));
+  const matches = pack.students.filter(
+    (s) => !(outHere(s) && !pack.returnAllowed) && (!q || s.name.includes(q.trim()) || s.phone.includes(q.trim()) || Boolean(s.pickup?.includes(q.trim()))),
+  );
+  const onRoster = matches.filter((s) => !outHere(s));
+  const shown = [...onRoster, ...matches.filter(outHere)];
+  const remaining = onRoster.filter((s) => !isRecorded(s.bookingId)).length;
   return (
     <div className="space-y-3">
       <Input type="search" placeholder={t("ابحث بالاسم أو الهاتف")} value={q} onChange={(e) => setQ(e.target.value)} />
       <p className="text-xs text-muted">
-        {cp ? t("{name}: متبقٍّ {left} من {total}", { name: cp.name, left: remaining, total: shown.length }) : t("لا يوجد تجمع مفتوح")}
+        {cp ? t("{name}: متبقٍّ {left} من {total}", { name: cp.name, left: remaining, total: onRoster.length }) : t("لا يوجد تجمع مفتوح")}
       </p>
       <ul className="glass divide-y divide-border rounded-2xl border border-border bg-surface">
         {shown.map((s) => {
           const done = isRecorded(s.bookingId);
+          const returning = outHere(s);
           return (
             <li key={s.bookingId} className="flex items-center justify-between gap-3 px-4 py-2.5">
               <div className="min-w-0">
-                <div className="font-medium">{s.name}</div>
+                <div className="font-medium">
+                  {s.name}
+                  {returning && <span className="ms-2 rounded-md bg-danger/10 px-2 py-0.5 text-xs font-normal text-danger">{t("غائب في التجمع الأول")}</span>}
+                </div>
                 <div className="flex flex-wrap gap-x-3 text-xs text-muted">
                   <span>{s.faculty}</span>
                   {s.bus && <span>{s.bus}</span>}
@@ -456,8 +468,8 @@ function RosterList({
                 <Badge tone="success">{t("مسجَّل")}</Badge>
               ) : (
                 pack.canManual && cp && (
-                  <Button className="px-3 py-1.5 text-xs" onClick={() => onMark(s.bookingId)}>
-                    {t("تسجيل الحضور")}
+                  <Button variant={returning ? "secondary" : undefined} className="px-3 py-1.5 text-xs" onClick={() => onMark(s.bookingId)}>
+                    {returning ? t("إعادة إلى الرحلة") : t("تسجيل الحضور")}
                   </Button>
                 )
               )}

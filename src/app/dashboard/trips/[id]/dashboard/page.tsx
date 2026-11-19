@@ -104,7 +104,7 @@ export default async function TripDashboardPage({ params, searchParams }: PagePr
           </Card>
           <Card className="p-3">
             <div className="text-xs text-muted">{t("العدد الفعلي")}</div>
-            <div className="text-xl font-bold">{trip.rosterLockedAt ? d.confirmed - d.finalAbsent : "—"}</div>
+            <div className="text-xl font-bold">{trip.rosterLockedAt ? d.confirmed - d.out : "—"}</div>
             {!trip.rosterLockedAt && <div className="text-xs text-muted">{t("بعد تأكيد العدد")}</div>}
           </Card>
           <Card className="p-3">
@@ -229,7 +229,8 @@ export default async function TripDashboardPage({ params, searchParams }: PagePr
                         </span>
                       ),
                     )}
-                    {r.finalAbsent && d.checkpoints.length > 1 && <span className="rounded-md bg-danger/10 px-2 py-0.5 text-xs text-danger">{t("خارج الرحلة")}</span>}
+                    {r.out && d.checkpoints.length > 1 && <span className="rounded-md bg-danger/10 px-2 py-0.5 text-xs text-danger">{t("خارج الرحلة")}</span>}
+                    {r.returned && <span className="rounded-md bg-success/10 px-2 py-0.5 text-xs text-success">{t("عاد إلى الرحلة")}</span>}
                   </div>
                 </li>
               ))}
